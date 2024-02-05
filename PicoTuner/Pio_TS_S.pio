@@ -1,0 +1,56 @@
+
+.program Pio_TS_S
+
+; this example reads the serial TS from the input pin when the tsvalid bit is high and the clock pulse goes high. 
+; we shift 1 bit into the ISR each pass and auto push this back to the FIFO every 32 bits. 
+; both FIFOS are combined to give an 8 word deep FIFO.
+; pin 0 is the TS data  pin 1 is the positive edge triggered clock  pin 2 is TSValid
+;
+             
+         wait 1 pin 2               ;wait for TSValid to go high
+         wait 0 pin 2               ;wait for TSVALID to go low (Ensures we are starting at the start of packet)
+ loop:   wait 1 pin 2               ;wait for TSVALID to go low (Start of packet)
+ loop2:  wait 1 pin 1               ;wait for clock to go high  (data valid)
+         in pins, 1                 ;sample the input pin
+         wait 0 pin 1               ;wait for the clock to go low
+         jmp pin , loop2            ;if TSVALID is still high then do the next bit
+         jmp loop                   ;else wait for the next packet
+                
+
+; Now we define a C Helper function that is used to configure the State Machine
+
+% c-sdk {
+static inline void  Pio_TS_S_init(PIO pio, uint sm, uint offset, uint pin) 
+{
+    // Define a structure 'c' that contains the default configuration
+    pio_sm_config c = Pio_TS_S_program_get_default_config(offset);
+
+    // Map the state machine's 'IN' pin group to the starting pin for that group.
+    sm_config_set_in_pins(&c, pin);
+    
+    //map the p[in used by the jmp instruction. (only one pin allowed.)
+    sm_config_set_jmp_pin(&c, pin+2); // pin+2 is the TSvalid pin
+
+    // Set the pin directions to input at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 3, false);
+
+    
+	  // Configure the IN shifts to left, autopush after 32 bits
+    sm_config_set_in_shift(&c, false, true, 32);
+
+    // Set the pin's GPIO function (connect PIO to the pad)	Need to repeat this (with a loop) for every pin used.
+    for(int p=0;p<3;p++) 
+    {
+        pio_gpio_init(pio, pin+p);
+    }
+    
+    // We only receive, so disable the TX FIFO to make the RX FIFO deeper.
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+    
+    // Load our configuration to the state machine
+	  pio_sm_init(pio, sm, offset, &c);
+	
+    // Set the state machine running	
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

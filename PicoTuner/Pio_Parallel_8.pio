@@ -1,0 +1,45 @@
+
+.program Pio_Parallel_8
+
+; this program takes the 16 bit value from the ISR outputs the low 8 bits to the output pins and the next 8 bits to the pin direction control. 
+; stalls and waits if the TX FIFO is empty. 
+;.wrap and .wrap_target remove the need for an extra JMP instruction
+             
+.wrap_target
+     out pins,8        ;shift the 8 bits to the output pins. uses auto pull for each 6 bits. 
+     out pindirs,8     ;shift the next 8 bits to the pin directions
+.wrap
+
+; Now we define a C Helper function that is used to configure the State Machine
+
+% c-sdk {
+static inline void  Pio_Parallel_8_init(PIO pio, uint sm, uint offset, uint pin) 
+{
+    // Define a structure 'c' that contains the default configuration
+    pio_sm_config c = Pio_Parallel_8_program_get_default_config(offset);
+
+    // Map the state machine's 'OUT' pin group to the starting pin for that group. this is for 1 pin but it can be for up to 32 pins	
+    sm_config_set_out_pins(&c, pin, 8);
+
+	  // Configure the OUT shifts to right, autopull after 6 bits
+    sm_config_set_out_shift(&c, true, true, 16);
+
+    // Set the pin's GPIO function (connect PIO to the pad)	Need to repeat this (with a loop) for every pin used.
+    for(int p=0;p<8;p++) 
+    {
+        pio_gpio_init(pio, pin+p);
+    }
+    
+
+  
+    // Set the initial pin direction for all the pins used. Can do up to 32 sequential pins. pin is first pin, 1 is pin count, true is Output	
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 8, false);
+
+
+    // Load our configuration to the state machine
+	  pio_sm_init(pio, sm, offset, &c);
+	
+    // Set the state machine running	
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
