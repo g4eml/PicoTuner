@@ -67,6 +67,8 @@
 
 
 #include <hardware/pio.h>
+#include "hardware/dma.h"
+#include "hardware/irq.h"
 #include <stdint.h>
 #include <stdio.h>
 #include "pico/stdlib.h"
@@ -77,23 +79,41 @@
 #include "Pio_Parallel_8.pio.h"
 #include "Pio_TS_S.pio.h"
 
-
-//PIO to use
-PIO pioa = pio0;
-PIO piob = pio1;
 // variable for the start location of the State Machine programs
 uint offset_2;
 uint offset_8;
-uint offset_TS;
-//variables for each state machine
-uint sm_2;            //State machine for 3 bit port
-uint sm_8;            //State machine for 8 bit port
-uint sm_TS;           //TS Input 
+uint offset_TS1;
+uint offset_TS2;
 
-//setup() initialises Core 1 of the RP2040.
+//variables for each state machine
+PIO pioa = pio0;
+uint sm_2 = 0;            //State machine for 3 bit port use state machine 0 on pio0
+uint sm_TS1 = 3;          //TS1 Input Use State machine 3 on pio0
+PIO piob = pio1;
+uint sm_8 = 0;            //State machine for 8 bit port use state machine 0 on pio
+uint sm_TS2 = 3;           //TS2 Input Use State machine 3 on pio1
+
+#define TSPACKETLENW 47                               //47 32bit words equals one 188 byte TS packet. 
+uint32_t TS2DMA[TSPACKETLENW];                        //DMA buffer for TS2 Packet              
+uint32_t TS1DMA[TSPACKETLENW];                        //DMA buffer for TS1 Packet
+
+uint DMA2Chan;
+uint DMA1Chan;
+
+bool TS2DMAAvailable = false;
+bool TS1DMAAvailable = false;
+
+int TS1ActiveTimeout = 0;
+int TS2ActiveTimeout = 0;
+unsigned long lastmillis =0;
+#define TSTIMEOUT  20                //20 ms timeout for LEDs
+
+
+
+//setup() initialises Core 0 of the RP2040.
+//Core 0 does most of the work. 
 void setup() 
 {
-
    pinMode(DEBUG1,OUTPUT);
    pinMode(DEBUG2,OUTPUT);
    pinMode(LED,OUTPUT);
@@ -102,35 +122,40 @@ void setup()
 
    // add the 3 bit port program and return its start location 
    offset_2 = pio_add_program(pioa, &Pio_Parallel_2_program);
-   // Find an unused State machine
-   sm_2 = pio_claim_unused_sm(pioa, true);
    //initialse the PIO SM using the helper function defined in the .pio file
    Pio_Parallel_2_init(pioa, sm_2, offset_2, SDA);
 
    // add the 8 bit port program and return its start location 
-   offset_8 = pio_add_program(pioa, &Pio_Parallel_8_program);
-   // Find an unused State machine
-   sm_8 = pio_claim_unused_sm(pioa, true);
+   offset_8 = pio_add_program(piob, &Pio_Parallel_8_program);
    //initialse the PIO SM using the helper function defined in the .pio file
-   Pio_Parallel_8_init(pioa, sm_8, offset_8, AC0);
+   Pio_Parallel_8_init(piob, sm_8, offset_8, AC0);
 
-  // add the Serial TS input program and return its start location 
-   offset_TS = pio_add_program(piob, &Pio_TS_S_program);
-   // Find an unused State machine
-   sm_TS = pio_claim_unused_sm(piob, true);
+
+  // add the Serial input program and return its start location
+   offset_TS1 = pio_add_program(pioa, &Pio_TS_S_program);
+  //initialse the PIO SM using the helper function defined in the .pio file
+    Pio_TS_S_init(pioa, sm_TS1, offset_TS1, TS1DAT);
+
+  // add the Serial input program and return its start location
+   offset_TS2 = pio_add_program(piob, &Pio_TS_S_program);
    //initialse the PIO SM using the helper function defined in the .pio file
-   Pio_TS_S_init(piob, sm_TS, offset_TS, TS2DAT);
+   Pio_TS_S_init(piob, sm_TS2, offset_TS2, TS2DAT);
+
+
 
     irq_set_exclusive_handler(5,isr_usbctrl);
 
-// reset all of the  buffers. 
+   // reset all of the  buffers. 
     clearBuffers();
 
     for(int i=0;i<TSBUFNUM;i++)
       {
-        TSBuf[i][0] = 0xAA;                     //first two bytes of each 512 byte buffer are the FTDI status bits. 
-        TSBuf[i][1] = 0xAA;                     //We don't know what they do so just using 0xAA as a nominal value.
+        TS2Buf[i][0] = 0xAA;                     //first two bytes of each 512 byte buffer are the FTDI status bits. 
+        TS2Buf[i][1] = 0xAA;                     //We don't know what they do so just using 0xAA as a nominal value.
+        TS1Buf[i][0] = 0xAA;                     //first two bytes of each 512 byte buffer are the FTDI status bits. 
+        TS1Buf[i][1] = 0xAA;                     //We don't know what they do so just using 0xAA as a nominal value.   
       }
+
 
     usb_device_init();
 
@@ -145,8 +170,8 @@ void setup()
 
 }
 
-//loop() uses Core 1 of the RP2040
-//
+//loop() uses Core 0 of the RP2040
+//Core 0 does most of the work.
 void loop() 
 {
   if(commandsAvailable() > 0)
@@ -154,66 +179,213 @@ void loop()
       processCommands();
     } 
 
-   if((TSBufsAvailable() >= 1 )&&(!TSTransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
+   if((TS2BufsAvailable() >= 1 )&&(!TS2TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
   {
-    sendTS(TSNORMAL);
+    sendTS2(TSNORMAL);
   }
 
-  if((millis() > EP83Timeout) && (!TSTransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
+  if((millis() > EP83Timeout)&&(!TS2TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
   {
-    sendTS(TSSTATUS);
-    pio_sm_restart(piob, sm_TS);
+    sendTS2(TSSTATUS);
+    dma_channel_set_irq0_enabled(DMA2Chan, false);
+    dma_channel_abort(DMA2Chan);
+    dma_channel_acknowledge_irq0(DMA2Chan);
+    pio_sm_restart(piob, sm_TS2);
+    dma_channel_set_irq0_enabled(DMA2Chan, true);
+    dma_channel_start(DMA2Chan);
   }
+
+   if((TS1BufsAvailable() >= 1 )&&(!TS1TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
+  {
+    sendTS1(TSNORMAL);
+  }
+
+  if((millis() > EP84Timeout)&&(!TS1TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
+  {
+    sendTS1(TSSTATUS);
+    dma_channel_set_irq1_enabled(DMA1Chan, false);
+    dma_channel_abort(DMA1Chan);
+    dma_channel_acknowledge_irq1(DMA1Chan);
+    pio_sm_restart(pioa, sm_TS1);
+    dma_channel_set_irq1_enabled(DMA1Chan, true);
+    dma_channel_start(DMA1Chan);
+  }
+
+  if(millis() > lastmillis)             //every millisecond
+  {
+    if(TS1ActiveTimeout > 0) TS1ActiveTimeout--;
+    if(TS2ActiveTimeout > 0) TS2ActiveTimeout--;
+    lastmillis = millis();
+  }
+
+  if(TS1ActiveTimeout > 0)
+    {
+      digitalWrite(DEBUG1,1);
+    }
+    else
+    {
+      digitalWrite(DEBUG1,0);
+    }
+
+  if(TS2ActiveTimeout > 0)
+    {
+      digitalWrite(DEBUG2,1);
+    }
+    else
+    {
+      digitalWrite(DEBUG2,0);
+    }
 
 }
 
-//setup1() initialises Core 2 of the RP2040. 
-//Nothing to do here. 
+//setup1() initialises Core 1 of the RP2040.
+//Core 1 does the high priority work   
 void setup1()
 {
+  //Setup DMA for TS2
+
+  DMA2Chan = dma_claim_unused_channel(true);
+ 
+  dma_channel_config c2 = dma_channel_get_default_config(DMA2Chan);
+
+  channel_config_set_transfer_data_size(&c2, DMA_SIZE_32);
+  channel_config_set_read_increment(&c2, false);
+  channel_config_set_write_increment(&c2, true);
+  channel_config_set_dreq(&c2, DREQ_PIO1_RX3);
+
+  dma_channel_configure(
+        DMA2Chan,               // Channel to be configured
+        &c2,                    // The configuration we just created
+        TS2DMA,                 // The initial write address the TS buffer
+        &piob->rxf[sm_TS2],      // Source pointer
+        TSPACKETLENW,            // Number of transfers
+        false                    // do not start immediately.
+    );
+        
+    dma_channel_set_irq0_enabled(DMA2Chan, true);      // Tell the DMA to raise IRQ line 0 when the channel finishes a block
+
+ //Setup DMA for TS1
+
+  DMA1Chan = dma_claim_unused_channel(true);
+ 
+  dma_channel_config c1 = dma_channel_get_default_config(DMA1Chan);
+
+  channel_config_set_transfer_data_size(&c1, DMA_SIZE_32);
+  channel_config_set_read_increment(&c1, false);
+  channel_config_set_write_increment(&c1, true);
+   channel_config_set_dreq(&c1, DREQ_PIO0_RX3);
+
+  dma_channel_configure(
+        DMA1Chan,               // Channel to be configured
+        &c1,                    // The configuration we just created
+        TS1DMA,                 // The initial write address the TS buffer
+        &pioa->rxf[sm_TS1],     // Source pointer
+        TSPACKETLENW,           // Number of transfers
+        false                    // do not start immediately.
+    );
+        
+    dma_channel_set_irq1_enabled(DMA1Chan, true);      // Tell the DMA to raise IRQ line 1 when the channel finishes a block 
+
+  //start the DMA transfers
+    irq_set_exclusive_handler(DMA_IRQ_0, DMA2_handler);       // Configure the processor to run dma_handler() when DMA IRQ 0 is asserted
+    irq_set_enabled(DMA_IRQ_0, true);
+
+    DMA2_handler();        //manually call the handler once to start the transfers
+
+    irq_set_exclusive_handler(DMA_IRQ_1, DMA1_handler);       // Configure the processor to run dma_handler() when DMA IRQ 1 is asserted
+    irq_set_enabled(DMA_IRQ_1, true);
+
+   DMA1_handler();        //manually call the handler once to start the transfers
 
 }
 
-//loop1() uses Core 2 of the TRP2040
-//Core 2 just services the TS data from the PIO device and saves it to the TS buffers.
 
+//loop1() uses Core 1 of the RP2040
+//Core 1 does the high priority work. Handles the DMA and re-formats the TS data from the PIO device and saves it to the TS buffers.
 void loop1()
 {
-  uint TScount;
-  uint32_t wor;
-  int bytestobufend;
-  static int testbyte=0;
-
- TScount = pio_sm_get_rx_fifo_level(piob, sm_TS);
-                                                           
-  if(TScount > 0)
+  union W
+  {
+    uint32_t w;                //map two variables to the same memory location
+    uint8_t b[4];              //this allows access by 32bit word or by 4 8 bit bytes. 
+  } wor;
+                                                        
+  if(TS2DMAAvailable)                     //have we received a new TS2 Packet?
     {
-       for(int i=0; i < TScount; i++)
+      TS2ActiveTimeout = TSTIMEOUT;
+       for(int i=0; i < 47; i++)
          {
-            wor = pio_sm_get_blocking(piob, sm_TS);           //Get the next available 4 bytes of TS   
-            for(int b=0;b<4;b++)                              //and copy them to the buffer. 
+            wor.w = TS2DMA[i];                 //Get the next available 4 bytes of the TS packet  
+            for(int b=3;b>=0;b--)                              //and copy them as bytes to the USB buffer. 
               {
-                TSBuf[TSBufInNumber][TSBufInPointer++] = wor >> 24;
-                wor=wor << 8;
-                if(TSBufInPointer >= TSBUFSIZE)               //if this buffer is full
+                TS2Buf[TS2BufInNumber][TS2BufInPointer++] = wor.b[b];
+                if(TS2BufInPointer >= TSBUFSIZE)               //if this buffer is full
                   {
-                    TSBufInPointer = 2;                       //move on to the next beffur
-                    TSBufInNumber++;
-                    if(TSBufInNumber >= TSBUFNUM) TSBufInNumber = 0;
+                    TS2BufInPointer = 2;                       //move on to the next beffur
+                    TS2BufInNumber++;
+                    if(TS2BufInNumber >= TSBUFNUM) TS2BufInNumber = 0;
                   }
              }
-         }     
+         }
+      TS2DMAAvailable = false;   
     }
+
+  if(TS1DMAAvailable)                     //have we received a new TS1 Packet?
+    {
+      TS1ActiveTimeout = TSTIMEOUT;
+       for(int i=0; i < 47; i++)
+         {
+            wor.w= TS1DMA[i];                 //Get the next available 4 bytes of the TS packet  
+            for(int b=3;b>=0;b--)                              //and copy them to the buffer. 
+              {
+                TS1Buf[TS1BufInNumber][TS1BufInPointer++] = wor.b[b];
+                if(TS1BufInPointer >= TSBUFSIZE)               //if this buffer is full
+                  {
+                    TS1BufInPointer = 2;                       //move on to the next beffur
+                    TS1BufInNumber++;
+                    if(TS1BufInNumber >= TSBUFNUM) TS1BufInNumber = 0;
+                  }
+             }
+         }
+      TS1DMAAvailable = false;   
+    }
+
 }                                                                                                 
+
+//interrupt called when DMA for TS2 has completed. 
+void DMA2_handler()
+{
+  // Clear the interrupt request.
+    dma_hw->ints0 = 1u << DMA2Chan;
+    // Give the channel a new write address, and re-trigger it
+    dma_channel_set_write_addr(DMA2Chan, TS2DMA, true);
+    TS2DMAAvailable = true;        //flag the data is avaiable. 
+}
+
+//interrupt called when DMA for TS1 has completed. 
+void DMA1_handler()
+{
+  // Clear the interrupt request.
+    dma_hw->ints1 = 1u << DMA1Chan;
+    // Give the channel a new write address, and re-trigger it
+    dma_channel_set_write_addr(DMA1Chan, TS1DMA, true);
+    TS1DMAAvailable = true;        //flag the data is avaiable. 
+}
+
+
 
 void clearBuffers(void)
 {
     commandBufInPointer = 0;
     commandBufOutPointer = 0;
-    TSBufInPointer = 2;
-    TSBufOutPointer = 0;
-    TSBufInNumber = 0;
-    TSBufOutNumber = 0;
+    TS2BufInPointer = 2;
+    TS2BufOutPointer = 0;
+    TS2BufInNumber = 0;
+    TS2BufOutNumber = 0;
+    TS1BufInPointer = 2;
+    TS1BufOutPointer = 0;
+    TS1BufInNumber = 0;
+    TS1BufOutNumber = 0;
     resultBuf[0] = 0;               //It seems the FTDI Device adds a two byte header to all results. 
     resultBuf[1] = 0;               //We don't know what this should be but zeros seems to work with Longmynd
     resultBufCount = 2;             //
@@ -311,7 +483,7 @@ void processCommands(void)
         break;
 
       case 1:
-        pio_sm_put_blocking(pioa, sm_8, (direction << 8) + value );
+        pio_sm_put_blocking(piob, sm_8, (direction << 8) + value );
         break;
     }
 

@@ -43,12 +43,15 @@ void ep2_out_handler(uint8_t *buf, uint16_t len);
 void ep83_in_handler(uint8_t *buf, uint16_t len);
 void ep84_in_handler(uint8_t *buf, uint16_t len);
 
-void sendTS(bool sendheader);
+void sendTS2(bool sendheader);
+void sendTS1(bool sendheader);
 
 void clearBuffers(void);
 
 unsigned long EP83Timeout;
 #define EP83TO 16       //timeout value in ms for EP83 packets. Will send a zero lenght packet if this timeout has expired. 
+unsigned long EP84Timeout;
+#define EP84TO 16       //timeout value in ms for EP83 packets. Will send a zero lenght packet if this timeout has expired. 
 
 // Global device address
 static bool should_set_address = false;
@@ -70,18 +73,25 @@ static uint16_t resultBufCount;
 //Global circular buffer for TS data to Host
 #define TSBUFSIZE 512  
 #define TSBUFNUM 20                             //This is the buffer size used by Longmynd It is Unlikely that we ever get near this value          
-static uint8_t TSBuf[TSBUFNUM][TSBUFSIZE];                //20 512 byte buffers. 
-static uint16_t TSBufInPointer;
-static uint16_t TSBufOutPointer;
-static int TSBufInNumber;
-static int TSBufOutNumber;
+static uint8_t TS2Buf[TSBUFNUM][TSBUFSIZE];                //20 512 byte buffers. 
+static uint16_t TS2BufInPointer;
+static uint16_t TS2BufOutPointer;
+static int TS2BufInNumber;
+static int TS2BufOutNumber;
+static uint8_t TS1Buf[TSBUFNUM][TSBUFSIZE];                //20 512 byte buffers. 
+static uint16_t TS1BufInPointer;
+static uint16_t TS1BufOutPointer;
+static int TS1BufInNumber;
+static int TS1BufOutNumber;
 #define TSZLP 0
 #define TSSTATUS 1
 #define TSNORMAL 2
 
 
-volatile bool TSTransferInProgress = false;
-volatile bool shortPacketSent = false;
+volatile bool TS2TransferInProgress = false;
+volatile bool TS1TransferInProgress = false;
+volatile bool TS2shortPacketSent = false;
+volatile bool TS1shortPacketSent = false;
 
 // Struct defining the device configuration
 static struct usb_device_configuration dev_config = {
@@ -136,8 +146,8 @@ static struct usb_device_configuration dev_config = {
                 {
                         .descriptor = &ep84_in,
                         .handler = &ep84_in_handler,
-                        .endpoint_control = &usb_dpram->ep_ctrl[3].out,
-                        .buffer_control = &usb_dpram->ep_buf_ctrl[4].out,
+                        .endpoint_control = &usb_dpram->ep_ctrl[3].in,
+                        .buffer_control = &usb_dpram->ep_buf_ctrl[4].in,
                         // fourth free EPX buffer
                         .data_buffer = &usb_dpram->epx_data[3 * 64],
                 }
@@ -657,22 +667,36 @@ int getNextCommand(void)
   return r;
 }
 
-//returns the number of 512 byte TS buffers waiting to be sent. 
-int TSBufsAvailable(void)
+//returns the number of 512 byte TS2 buffers waiting to be sent. 
+int TS2BufsAvailable(void)
 {
-    if(TSBufInNumber >= TSBufOutNumber)
+    if(TS2BufInNumber >= TS2BufOutNumber)
     {
-       return TSBufInNumber - TSBufOutNumber;
+       return TS2BufInNumber - TS2BufOutNumber;
     }
     else
     {
-      return TSBufInNumber + (TSBUFNUM - TSBufOutNumber);
+      return TS2BufInNumber + (TSBUFNUM - TS2BufOutNumber);
     }
 
 }
 
-//sends the next 64 byte packet of the TS buffer
-void sendTS(int mode)
+//returns the number of 512 byte TS1 buffers waiting to be sent. 
+int TS1BufsAvailable(void)
+{
+    if(TS1BufInNumber >= TS1BufOutNumber)
+    {
+       return TS1BufInNumber - TS1BufOutNumber;
+    }
+    else
+    {
+      return TS1BufInNumber + (TSBUFNUM - TS1BufOutNumber);
+    }
+
+}
+
+//sends the next 64 byte packet of the TS2 buffer
+void sendTS2(int mode)
 {
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP83_IN_ADDR);
     uint8_t sbuf[64];
@@ -681,61 +705,109 @@ void sendTS(int mode)
     {
       case 0:                                                            //send zero length packet
          usb_start_transfer(ep, sbuf, 0);                                //start the zero length transfer to signal buffer end
-         TSTransferInProgress = true;
-         shortPacketSent = true;
+         TS2TransferInProgress = true;
+         TS2shortPacketSent = true;
       break;
 
       case 1:                                                            //send the 2 byte status packet
         sbuf[0] =0x55;                                                   //just using 0x55 as a nominal value. 
         sbuf[1] =0x55;                                                   // send the two status bytes bytes
         usb_start_transfer(ep, sbuf, 2);                                 //start the transfer of the status bytes
-        TSTransferInProgress = true;
-        shortPacketSent = true;
+        TS2TransferInProgress = true;
+        TS2shortPacketSent = true;
       break;
 
       case 2:                                                            //send the full 64 byte packet
-        memcpy(sbuf, &TSBuf[TSBufOutNumber][TSBufOutPointer], 64);       // send 64 bytes of the buffer
+        memcpy(sbuf, &TS2Buf[TS2BufOutNumber][TS2BufOutPointer], 64);       // send 64 bytes of the buffer
         usb_start_transfer(ep, sbuf, 64);                                //start the transfer
-        TSTransferInProgress = true;
-        shortPacketSent = false;
-        TSBufOutPointer = TSBufOutPointer + 64;
-        if(TSBufOutPointer >= TSBUFSIZE) 
+        TS2TransferInProgress = true;
+        TS2shortPacketSent = false;
+        TS2BufOutPointer = TS2BufOutPointer + 64;
+        if(TS2BufOutPointer >= TSBUFSIZE) 
           {
-            TSBufOutPointer = 0;
-            TSBufOutNumber++;
-            if(TSBufOutNumber >= TSBUFNUM) TSBufOutNumber = 0;
+            TS2BufOutPointer = 0;
+            TS2BufOutNumber++;
+            if(TS2BufOutNumber >= TSBUFNUM) TS2BufOutNumber = 0;
           }
       break;
     }
 
     EP83Timeout = millis() + EP83TO;
-    digitalWrite(DEBUG2,1);
-    digitalWrite(LED,1);
+}
+
+//sends the next 64 byte packet of the TS1 buffer
+void sendTS1(int mode)
+{
+    struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP84_IN_ADDR);
+    uint8_t sbuf[64];
+
+    switch(mode) 
+    {
+      case 0:                                                            //send zero length packet
+         usb_start_transfer(ep, sbuf, 0);                                //start the zero length transfer to signal buffer end
+         TS1TransferInProgress = true;
+         TS1shortPacketSent = true;
+      break;
+
+      case 1:                                                            //send the 2 byte status packet
+        sbuf[0] =0x55;                                                   //just using 0x55 as a nominal value. 
+        sbuf[1] =0x55;                                                   // send the two status bytes bytes
+        usb_start_transfer(ep, sbuf, 2);                                 //start the transfer of the status bytes
+        TS1TransferInProgress = true;
+        TS1shortPacketSent = true;
+      break;
+
+      case 2:                                                            //send the full 64 byte packet
+        memcpy(sbuf, &TS1Buf[TS1BufOutNumber][TS1BufOutPointer], 64);       // send 64 bytes of the buffer
+        usb_start_transfer(ep, sbuf, 64);                                //start the transfer
+        TS1TransferInProgress = true;
+        TS1shortPacketSent = false;
+        TS1BufOutPointer = TS1BufOutPointer + 64;
+        if(TS1BufOutPointer >= TSBUFSIZE) 
+          {
+            TS1BufOutPointer = 0;
+            TS1BufOutNumber++;
+            if(TS1BufOutNumber >= TSBUFNUM) TS1BufOutNumber = 0;
+          }
+      break;
+    }
+
+    EP84Timeout = millis() + EP84TO;
 }
 
 //EP83 Send TS2 Data To Host This function gets called when the transfer has completed. 
 void ep83_in_handler(uint8_t *buf, uint16_t len) 
 {
-    digitalWrite(LED,0);
-    digitalWrite(DEBUG2,0);
-     if(TSBufsAvailable() > 0)               //if we still have data avialable then continue the bulk transfer or send a ZLP if necessary
+     if(TS2BufsAvailable() > 0)               //if we still have data avialable then continue the bulk transfer or send a ZLP if necessary
      {
-      sendTS(TSNORMAL);                      //send the next 64 bytes
+      sendTS2(TSNORMAL);                      //send the next 64 bytes
      }
-     else if(shortPacketSent)                //we have already sent the short packet so we are finished
+     else if(TS2shortPacketSent)                //we have already sent the short packet so we are finished
      {
-         TSTransferInProgress = false;       //nothing left to send so, terminate the bulk transfer. 
-         shortPacketSent = false;
+         TS2TransferInProgress = false;       //nothing left to send so, terminate the bulk transfer. 
+         TS2shortPacketSent = false;
      }
      else
      {
-      sendTS(TSZLP);                         //send a Zero Length packet to indicate the transfer has finished. 
+      sendTS2(TSZLP);                         //send a Zero Length packet to indicate the transfer has finished. 
      }
 }
 
 //EP84 Send TS1 Data To Host This function gets called when the transfer has completed. 
-//Not yet in use.
 void ep84_in_handler(uint8_t *buf, uint16_t len) 
 {
+     if(TS1BufsAvailable() > 0)               //if we still have data avialable then continue the bulk transfer or send a ZLP if necessary
+     {
+      sendTS1(TSNORMAL);                      //send the next 64 bytes
+     }
+     else if(TS1shortPacketSent)                //we have already sent the short packet so we are finished
+     {
+         TS1TransferInProgress = false;       //nothing left to send so, terminate the bulk transfer. 
+         TS1shortPacketSent = false;
+     }
+     else
+     {
+      sendTS1(TSZLP);                         //send a Zero Length packet to indicate the transfer has finished. 
+     }
 
 }
