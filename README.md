@@ -86,3 +86,39 @@ The Raspberry Pi Pico is programmed using the Arduino IDE with the Earl F. Philh
 
 The Sketch should compile and upload automatically to the Pico. If the upload fails you may need to disconnect the Pico and then hold down the BOOTSEL button while reconnecting. 
 
+## Firmware description
+
+The firmware is based on the Raspberry Pi foundation example code for a low level USB device. It adds additional changes to the device descriptors so that the device configuration is very close to that of the previoulsy used FTDI2232 module.
+
+Control of the GPIO pins for I2C, for device control and for reading the two TS streams is done using PIO state machines which are defined in the .pio.h files. 
+Note that these files are auto generated and should not be manually edited. If you need to change the PIO machines then you will need to edit the .pio files and recompile them. 
+The .pio files are not visible in the Arduino IDE, you should use another text editor to work on them. When finished you should run the 'build_pio.bat' batch job to create the pio.h files. 
+
+Both cores of the RP2040 chip are used. Core0 does most of the work including running the interrupt driven USB device. Core1 handles the task of handling the DMA, copying and reformatting of the TS data.
+Note that both cores are fairly time critical. Adding debugging print statements will slow them down and cause errors with the USB device. 
+
+## USB device description
+
+The resulting USB device has been made to look very similar to the FTDI FT2232H and presents two interfaces.  This is so that any existing software can easily be adapted to work with the new device. 
+It is however far from a full emulation of the FT2232H. Only those features need by the Minitiuoner are implemented. Some FTDI commands are acknowledged but do nothing. 
+
+The device VID is 0x2E8A (Raspberry Pi Foundation)
+
+The device PID is 0xBA2C 
+
+The endpoints are as follows:-
+
+On Interface 0:-
+
+0x00 and 0x80 as output and input for device control. 
+
+0x81 and 0x02 for I2C and GPIO control. Very loosly emulating the FTDI MPSSE device
+
+On Interface 1:-
+
+0x83 and 0x84 as Bulk transfer inputs for streaming TS2 and TS1. Sent 512 bytes at a time. Note that there is a 2 byte status word at the beginning of each 512 byte transfer which will nedd to be removed to reform the original TS. 
+
+
+
+
+
