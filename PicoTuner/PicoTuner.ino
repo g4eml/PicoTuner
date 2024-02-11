@@ -1,10 +1,10 @@
 /**
  * PicoTuner. 
- * BATC Minitiouner V3 interface. 
+ * BATC PicoTuner interface. 
  * Colin Durbridge G4EML January 2024.
  *
  * Provides a partial emulation of the FTDI FT2232 Dual port fifo chip. 
- * Only those functions used by the Minitiouner are emulated.
+ * Only those functions used by the software are emulated.
  *
  * Written for the Arduino IDE using the RP2040 support developed by 
  * Earle F. Philhower, III.
@@ -18,14 +18,14 @@
  */
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0x00
-#define VERSIONMINOR 0x02                         
+#define VERSIONMINOR 0x03                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
 #define USBPID 0xBA2C
 
-//BCDDEVICE is the device revision number. We can probably use this to identify Minitiouner or Knucker 
-//0101 = Minitiouner Parallel TS      0102 = Minitiouner Serial TS      0201 = Knucker. 
+//BCDDEVICE is the device revision number. 
+//0101 =Parallel TS      0102 =  Serial TS   
 #define BCDDEVICE 0x0102       
 
 //IO pin definitions.  Each group of pins must remain on sequential pins in the same order. The PIO hardware can only access sequential pins.  
@@ -403,7 +403,7 @@ void clearBuffers(void)
 }
 
 //process all available MPSSE commands. 
-//Only a few are relevent to the minitiouner. The rest are ignored. 
+//Only a few are relevent to the PicoTuner. The rest are ignored. 
 void processCommands(void)
 {
   int command;

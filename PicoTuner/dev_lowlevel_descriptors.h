@@ -169,9 +169,9 @@ static const unsigned char lang_descriptor[] = {
 
 static const unsigned char *descriptor_strings[] = {
         (unsigned char *) "BATC",    // Vendor
-        (unsigned char *) "BATC Pico Minitiouner", // Product
-       (unsigned char *) "BATC Pico Minitiouner i2c", // Interface 1
-       (unsigned char *) "BATC Pico Minitiouner TS" // Interface 2
+        (unsigned char *) "BATC PicoTuner", // Product
+       (unsigned char *) "BATC PicoTuner i2c", // Interface 1
+       (unsigned char *) "BATC PicoTuner TS" // Interface 2
 
 };
 
