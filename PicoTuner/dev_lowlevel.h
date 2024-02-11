@@ -731,7 +731,7 @@ void sendTS2(int mode)
           }
       break;
     }
-
+    digitalWrite(LED,1);
     EP83Timeout = millis() + EP83TO;
 }
 
@@ -778,6 +778,7 @@ void sendTS1(int mode)
 //EP83 Send TS2 Data To Host This function gets called when the transfer has completed. 
 void ep83_in_handler(uint8_t *buf, uint16_t len) 
 {
+     digitalWrite(LED,0);
      if(TS2BufsAvailable() > 0)               //if we still have data avialable then continue the bulk transfer or send a ZLP if necessary
      {
       sendTS2(TSNORMAL);                      //send the next 64 bytes

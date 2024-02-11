@@ -16,8 +16,9 @@
  * 
  * 
  */
-
-
+//Version Number BCD   vvrr
+#define VERSIONMAJOR 0x00
+#define VERSIONMINOR 0x02                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -29,11 +30,11 @@
 
 //IO pin definitions.  Each group of pins must remain on sequential pins in the same order. The PIO hardware can only access sequential pins.  
 
-#define DEBUG1 0          //Debug pin for Scope or terminal
-#define DEBUG2 1          //Debug pin for scope or terminal
+#define DEBUG1 0          //Debug pin for Scope or terminal. Also used for Front Panel LEDs
+#define DEBUG2 1          //Debug pin for scope or terminal. Also used for Front Panel LEDs
 
 #define AC0 2         //NIM RESET LOW
-#define AC1 3         //T2 SYNC
+#define AC1 3         //
 #define AC2 4         //J8-6
 #define AC3 5         //J8-5
 #define AC4 6         //J8-4  LNB Bias Enable 
@@ -50,13 +51,14 @@
 #define TS2CLK 14     //TS2CLK 
 #define TS2VALID 15   //TS2VALID
 
-#define SPARE16 16    //Reserved for Ethernet Hat
-#define SPARE17 17    //Reserved for Ethernet Hat
-#define SPARE18 18    //Reserved for Ethernet Hat
-#define SPARE19 19    //Reserved for Ethernet Hat               
-#define SPARE20 20    //Reserved for Ethernet Hat                          
-#define SPARE21 21    //Reserved for Ethernet Hat
-#define SPARE22 22    //Reserved for Ethernet Hat
+#define ETHSPRX 16    //Reserved for Ethernet Hat SPIO RX
+#define ETHSPCS 17    //Reserved for Ethernet Hat SPIO CS Low
+#define ETHSPCK 18    //Reserved for Ethernet Hat SPIO CLK               
+#define ETHSPTX 19    //Reserved for Ethernet Hat SPIO TX
+#define ETHRSTN 20    //Reserved for Ethernet Hat Reset Low                       
+#define ETHINTN 21    //Reserved for Ethernet Hat Interrupt Low
+
+#define SPARE22 22    //
 
 #define LED 25         //Onboard LED
 
@@ -117,6 +119,15 @@ void setup()
    pinMode(DEBUG1,OUTPUT);
    pinMode(DEBUG2,OUTPUT);
    pinMode(LED,OUTPUT);
+
+   //initialise pins for future Ethernet module
+   pinMode(ETHSPTX,INPUT_PULLUP);
+   pinMode(ETHSPRX,INPUT_PULLUP);
+   pinMode(ETHSPCK,INPUT_PULLUP);
+   pinMode(ETHSPCS,INPUT_PULLUP);
+   pinMode(ETHINTN,INPUT_PULLUP);
+   pinMode(ETHRSTN,OUTPUT);
+   digitalWrite(ETHRSTN,LOW);
 
    //initialise the PIO state machines
 
@@ -460,7 +471,17 @@ void processCommands(void)
           param2=getNextCommand();
           break;
 
-        default:
+        // New command to return firmware version
+        case 0xBA:
+          resultBuf[resultBufCount++] = VERSIONMAJOR;
+          resultBuf[resultBufCount++] = VERSIONMINOR;
+          sendResult();
+          break; 
+      
+        //Unrecognised commands  all return Bad Command response
+          resultBuf[resultBufCount++] = 0xFA;
+          resultBuf[resultBufCount++] = command;
+          sendResult();
           break;
       }
 
