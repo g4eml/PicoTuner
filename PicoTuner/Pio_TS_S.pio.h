@@ -8,6 +8,14 @@
 #include "hardware/pio.h"
 #endif
 
+
+
+#pragma once
+
+#if !PICO_NO_HARDWARE
+#include "hardware/pio.h"
+#endif
+
 // -------- //
 // Pio_TS_S //
 // -------- //

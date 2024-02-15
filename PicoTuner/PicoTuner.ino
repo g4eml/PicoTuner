@@ -18,7 +18,7 @@
  */
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0x00
-#define VERSIONMINOR 0x03                         
+#define VERSIONMINOR 0x04                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A

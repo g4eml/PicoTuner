@@ -62,7 +62,9 @@ static volatile bool configured = false;
 static uint8_t ep0_buf[64];
 
 //Global buffer for MPSSE commands from Host
-static uint8_t commandBuf[1024];               
+
+#define COMMANDBUFSIZE 4096
+static uint8_t commandBuf[COMMANDBUFSIZE];               
 static uint16_t commandBufInPointer;
 static uint16_t commandBufOutPointer;
 
@@ -303,9 +305,8 @@ static inline bool ep_is_tx(struct usb_endpoint_configuration *ep) {
 void usb_start_transfer(struct usb_endpoint_configuration *ep, uint8_t *buf, uint16_t len) {
 
   noInterrupts();
-    // We are asserting that the length is <= 64 bytes for simplicity of the example.
-    // For multi packet transfers see the tinyusb port.
-    assert(len <= 64);
+
+    if(len > 64) len = 64;
 
     // Prepare buffer control register value
     uint32_t val = len;
@@ -641,7 +642,7 @@ void ep2_out_handler(uint8_t *buf, uint16_t len)
       for(int c = 0; c < len ; c++)
       {
         commandBuf[commandBufInPointer++] = buf[c];
-        if(commandBufInPointer == 1024 ) commandBufInPointer = 0;
+        if(commandBufInPointer == COMMANDBUFSIZE ) commandBufInPointer = 0;
       }
 
      // Get ready to rx again from host
@@ -656,14 +657,14 @@ int commandsAvailable(void)
   }
   else
   {
-    return commandBufInPointer + (1024 - commandBufOutPointer);
+    return commandBufInPointer + (COMMANDBUFSIZE - commandBufOutPointer);
   }
 }
 
 int getNextCommand(void)
 {
   int r = commandBuf[commandBufOutPointer++];
-  if(commandBufOutPointer == 1024) commandBufOutPointer = 0;
+  if(commandBufOutPointer == COMMANDBUFSIZE) commandBufOutPointer = 0;
   return r;
 }
 
