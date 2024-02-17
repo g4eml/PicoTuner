@@ -9,7 +9,11 @@ The Raspberry Pi Pico is low cost, readily available and can also handle both Tr
 
 This code will work on the original Raspberry Pi Pico, the Pico W and probably on other RP2040 based boards.
 Whilst being designed for the new BATC V3 Minitiouner project it is also possible to retrofit a Pico to the V2 Minitiouner.
-The advantage of doing this is to provide access to the second Transport Stream from the NIM. This will allow two signals to be received at the same time. 
+The advantage of doing this is to provide access to the second Transport Stream from the NIM. This will allow two signals to be received at the same time.
+
+## Limitations
+
+The Pico hardware can only support USB 1.1 Full Speed mode which is up to 12 Mb/s. The FTDI module can support High speed mode which is much faster. For this reason the Pico is only able to support the low Sample rate DVBS transmissions commonly used for amateur radio. It is not able to receive the much higher SRs used by commercial TV.  The upper speed limit has not yet been fully defined but it is perfectly capable of receiving the QO-100 (SR1500) Beacon twice, using both TS. 
 
 ## Programming or updating the Raspberry Pi Pico (quick method)
 
