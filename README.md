@@ -124,9 +124,13 @@ On Interface 1:-
 
 # Adaptor PCB for Minitiouner
 
+![Adaptor_Small](https://github.com/g4eml/PicoTuner/assets/1881884/8f318989-f6f2-4fd1-a1c9-3b0cc474d794)
+
 Whilst the PicoTuner was designed for use in a new tuner design it can also be retrofitted to the BATC V2 Minitiouner and similar designs providing their FTDI modules are fitted in sockets. This involves removing the FTDI module, replacing it with an adaptor pcb and adding 5 wires to connect signals that are not present on the FTDI sockets. The advantage of doing this upgrade is to provide access to the second TS. When supported by the host software this then allows the reception of two signals at the same time. To save space and to try to make the module mechanically compatible surface mount techniques are used. However due to the large size of the components involved it is still easily assembled by hand.  
 
 ## What is needed to make the adaptor
+
+![Parts Small](https://github.com/g4eml/PicoTuner/assets/1881884/f39932b6-50eb-4cb2-a415-d2c30107807e)
 
 PCB :- These will be available from the BATC shop, or you can get your own made using one of the Chinese PCB manufacturers. The Gerber files are include in the Adaptor Folder.
 
@@ -144,6 +148,9 @@ Lay the pico board directly onto the PCB and align the edges with the pads. Appl
 
 Fit and solder the 5 way pin header. 
 
+![Underside Small](https://github.com/g4eml/PicoTuner/assets/1881884/49900da7-42b1-4a40-9b7e-1b92a5d29567)
+![Topside Small](https://github.com/g4eml/PicoTuner/assets/1881884/d9e220fb-2e78-4aca-b498-b67add5d8090)
+
 ## Fitting to the BATC V2 Minitiouner
 
 Remove the FTDI module from its socket. Plug the Pico adaptor PCB in its place. The USB connector should be very close to the same position and should still be accessable through the rear panel. 
@@ -152,6 +159,8 @@ Connect pin 5 of J1 on the adaptor module to pin 9 of U7 (74HC10) on the minitio
 
 Connect pin 6 of J1 to pin 10 of U7 in the same way. 
 
+![74HC10 Small](https://github.com/g4eml/PicoTuner/assets/1881884/7278e593-fe17-4b4f-95c3-7d5bc239c34a)
+
 The final three wires need to be connected between J1 and the 'TS1' connector on the minitiouner PCB. These wires are only required if you wish to use the second TS. 
 
 Connect J1 Pin 1 to D7
@@ -159,6 +168,9 @@ Connect J1 Pin 1 to D7
 Connect J1 pin 2 to CK
 
 Connect J1 pin 3 to VA
+
+![TS1 Small](https://github.com/g4eml/PicoTuner/assets/1881884/7707e6ab-416c-4767-a013-00b3b92feabe)
+![Fitting Small](https://github.com/g4eml/PicoTuner/assets/1881884/6bb9ed64-c67d-4774-8cab-f369e46045bd)
 
 ## Programming the Pico
 
