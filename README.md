@@ -157,7 +157,7 @@ Remove the FTDI module from its socket. Plug the Pico adaptor PCB in its place. 
 
 Connect pin 5 of J1 on the adaptor module to pin 9 of U7 (74HC10) on the minitiouner board. The 74HC10 is no longer used, so it can be removed or left in place, it makes no difference. You can solder the wire directly to the pin of the chip, remove the chip and plug the wire into the socket or use a pin header. 
 
-Connect pin 6 of J1 to pin 10 of U7 in the same way. 
+Connect pin 4 of J1 to pin 10 of U7 in the same way. 
 
 ![74HC10 Small](https://github.com/g4eml/PicoTuner/assets/1881884/7278e593-fe17-4b4f-95c3-7d5bc239c34a)
 
@@ -165,7 +165,7 @@ The final three wires need to be connected between J1 and the 'TS1' connector on
 
 Connect J1 Pin 1 to D7
 
-Connect J1 pin 2 to CK
+Connect J1 pin 2 to CLK
 
 Connect J1 pin 3 to VA
 
