@@ -120,11 +120,11 @@ On Interface 1:-
 
 # Adaptor PCB for Minitiouner
 
-Whilst the PicoTuner was designed for use in a new tuner design it can also be retrofitted to the BATC V2 Minitiouner and similar designs if their FTDI modules are fitted in sockets. This involves removing the FTDI module, replacing it with an adaptor pcb and adding 5 wires to connect signals that are not present on the FTDI sockets. The advantage of doing this upgrade is to provide access to the second TS. When supported by the host software this then allows the reception of two signals at the same time. To save spcae and to try to make the module mechanically compatible surface mount techniques are used. However due to the large size of the components involved this is still easily assembled by hand.  
+Whilst the PicoTuner was designed for use in a new tuner design it can also be retrofitted to the BATC V2 Minitiouner and similar designs providing their FTDI modules are fitted in sockets. This involves removing the FTDI module, replacing it with an adaptor pcb and adding 5 wires to connect signals that are not present on the FTDI sockets. The advantage of doing this upgrade is to provide access to the second TS. When supported by the host software this then allows the reception of two signals at the same time. To save space and to try to make the module mechanically compatible surface mount techniques are used. However due to the large size of the components involved it is still easily assembled by hand.  
 
 ## What is needed to make the adaptor
 
-PCB :- These will be available from the BATC shop, or you can get your own made using one of the chinese PCB manufacturers. The Gerber files are include in the Adaptor Folder.
+PCB :- These will be available from the BATC shop, or you can get your own made using one of the Chinese PCB manufacturers. The Gerber files are include in the Adaptor Folder.
 
 Raspberry Pi Pico :- Surface mount version without pin headers. 
 
