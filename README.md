@@ -134,11 +134,14 @@ Whilst the PicoTuner was designed for use in a new tuner design it can also be r
 
 PCB :- These will be available from the BATC shop, or you can get your own made using one of the Chinese PCB manufacturers. The Gerber files are include in the Adaptor Folder.
 
-Raspberry Pi Pico :- Surface mount version without pin headers. 
+Raspberry Pi Pico :- Surface mount version without pin headers.<br />
+The Pi Hut Part Number:- SC0915    Mouser Part Number :- 358-SC0915
 
-2 x 26 way Dual row 2.54mm surface mount pin headers. 
+2 x 26 way Dual row 2.54mm surface mount pin headers.<br /> 
+Harwin Part Number:- M20-8761346   Mouser Part Number:- 855-M20-8761346   Farnell Part Number :- 3756209
 
-1 x 5 way Single row 2.54mm through hole pin header. 
+1 x 5 way Single row 2.54mm through hole pin header.<br /> 
+Harwin Part Number:- M20-9990545   Mouser Part Number:- 855-M20-9990545   Farnell Part Number :- 1022252
 
 ## Assembly instructions
 
