@@ -158,7 +158,7 @@ Connect J1 pin 3 to VA
 
 ## Programming the Pico
 
-Program the pico as described above.   
+Program the pico as described [above](#programming-or-updating-the-raspberry-pi-pico-quick-method). 
 
 
 
