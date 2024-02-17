@@ -118,6 +118,60 @@ On Interface 1:-
 
 0x83 and 0x84 as Bulk transfer inputs for streaming TS2 and TS1. Sent 512 bytes at a time. Note that there is a 2 byte status word at the beginning of each 512 byte transfer which will nedd to be removed to reform the original TS. 
 
+# Adaptor PCB for Minitiouner
+
+Whilst the PicoTuner was designed for use in a new tuner design it can also be retrofitted to the BATC V2 Minitiouner and similar designs if their FTDI modules are fitted in sockets. This involves removing the FTDI module, replacing it with an adaptor pcb and adding 5 wires to connect signals that are not present on the FTDI sockets. The advantage of doing this upgrade is to provide access to the second TS. When supported by the host software this then allows the reception of two signals at the same time. To save spcae and to try to make the module mechanically compatible surface mount techniques are used. However due to the large size of the components involved this is still easily assembled by hand.  
+
+## What is needed to make the adaptor
+
+PCB :- These will be available from the BATC shop, or you can get your own made using one of the chinese PCB manufacturers. The Gerber files are include in the Adaptor Folder.
+
+Raspberry Pi Pico :- Surface mount version without pin headers. 
+
+2 x 26 way Dual row 2.54mm surface mount pin headers. 
+
+1 x 5 way Single row 2.54mm through hole pin header. 
+
+## Assembly instructions
+
+Start with fitting the first of the 26 Way Dual row pin headers. Apply solder to one pad of the PCB and then tack the connector in place. Ensure that all of the pins are centrally aligned on the pads. Once you are happy with the position apply solder to all af the pads to fix the connector in position. Fit the second connector in the same way, checking the the spacing is correct to fit into the socket on the minitiouner before final soldering. If you align both connectors accurately on the pads this will be correct but you may wish to use a scrap of veroboard or someting similar to check the alignment. Once you are happy solder the second connector into place.
+
+Lay the pico board directly onto the PCB and align the edges with the pads. Apply solder to the castelated edge of pin 1 to form a fillet of solder. Check the alignment of the board and adjust as necessary. When happy apply solder to all castellated holes. If possible leave the driled holes free of solder. This will simplify the fitting of the Ethernet module at a later date. 
+
+Fit and solder the 5 way pin header. 
+
+## Fitting to the BATC V2 Minitiouner
+
+Remove the FTDI module from its socket. Plug the Pico adaptor PCB in its place. The USB connector should be very close to the same position and should still be accessable through the rear panel. 
+
+Connect pin 5 of J1 on the adaptor module to pin 9 of U7 (74HC10) on the minitiouner board. The 74HC10 is no longer used, so it can be removed or left in place, it makes no difference. You can solder the wire directly to the pin of the chip, remove the chip and plug the wire into the socket or use a pin header. 
+
+Connect pin 6 of J1 to pin 10 of U7 in the same way. 
+
+The final three wires need to be connected between J1 and the 'TS1' connector on the minitiouner PCB. These wires are only required if you wish to use the second TS. 
+
+Connect J1 Pin 1 to D7
+
+Connect J1 pin 2 to CK
+
+Connect J1 pin 3 to VA
+
+## Programming the Pico
+
+Program the pico as described above.   
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
