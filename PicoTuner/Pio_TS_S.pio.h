@@ -8,38 +8,31 @@
 #include "hardware/pio.h"
 #endif
 
-
-
-#pragma once
-
-#if !PICO_NO_HARDWARE
-#include "hardware/pio.h"
-#endif
-
 // -------- //
 // Pio_TS_S //
 // -------- //
 
 #define Pio_TS_S_wrap_target 0
-#define Pio_TS_S_wrap 7
+#define Pio_TS_S_wrap 8
 
 static const uint16_t Pio_TS_S_program_instructions[] = {
             //     .wrap_target
     0x20a2, //  0: wait   1 pin, 2                   
     0x2022, //  1: wait   0 pin, 2                   
-    0x20a2, //  2: wait   1 pin, 2                   
-    0x20a1, //  3: wait   1 pin, 1                   
-    0x4001, //  4: in     pins, 1                    
-    0x2021, //  5: wait   0 pin, 1                   
-    0x00c3, //  6: jmp    pin, 3                     
-    0x0002, //  7: jmp    2                          
+    0xa0c6, //  2: mov    isr, isr                   
+    0x20a2, //  3: wait   1 pin, 2                   
+    0x20a1, //  4: wait   1 pin, 1                   
+    0x4001, //  5: in     pins, 1                    
+    0x2021, //  6: wait   0 pin, 1                   
+    0x00c4, //  7: jmp    pin, 4                     
+    0x0002, //  8: jmp    2                          
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program Pio_TS_S_program = {
     .instructions = Pio_TS_S_program_instructions,
-    .length = 8,
+    .length = 9,
     .origin = -1,
 };
 

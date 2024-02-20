@@ -303,9 +303,6 @@ static inline bool ep_is_tx(struct usb_endpoint_configuration *ep) {
  * @param len, the length of the data in buf (this example limits max len to one packet - 64 bytes)
  */
 void usb_start_transfer(struct usb_endpoint_configuration *ep, uint8_t *buf, uint16_t len) {
-
-  noInterrupts();
-
     if(len > 64) len = 64;
 
     // Prepare buffer control register value
@@ -325,8 +322,6 @@ void usb_start_transfer(struct usb_endpoint_configuration *ep, uint8_t *buf, uin
     *ep->buffer_control = val;
     asm volatile("nop \n nop \n nop \n nop");                  //Tiny delay to ensure Controller has received the data                                   
     *ep->buffer_control = val | USB_BUF_CTRL_AVAIL;           //set the available bit as the last thing. (See RP2040 datasheet 4.1.2.5.1. for reason.)
-
-    interrupts();
 }
 
 /**
@@ -593,10 +588,6 @@ void isr_usbctrl(void) {
         usb_bus_reset();
     }
 
-    if (status ^ handled) {
-        panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
-    }
-
 }
 
 /**
@@ -644,7 +635,6 @@ void ep2_out_handler(uint8_t *buf, uint16_t len)
         commandBuf[commandBufInPointer++] = buf[c];
         if(commandBufInPointer == COMMANDBUFSIZE ) commandBufInPointer = 0;
       }
-
      // Get ready to rx again from host
     usb_start_transfer(usb_get_endpoint_configuration(EP2_OUT_ADDR), NULL, 64);
 }

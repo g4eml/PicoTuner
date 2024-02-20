@@ -9,7 +9,8 @@
              
          wait 1 pin 2               ;wait for TSValid to go high
          wait 0 pin 2               ;wait for TSVALID to go low (Ensures we are starting at the start of packet)
- loop:   wait 1 pin 2               ;wait for TSVALID to go low (Start of packet)
+ loop:   mov isr,isr                ;reset the isr bit counter in case we are out of sysnc. 
+         wait 1 pin 2               ;wait for TSVALID to go low (Start of packet)
  loop2:  wait 1 pin 1               ;wait for clock to go high  (data valid)
          in pins, 1                 ;sample the input pin
          wait 0 pin 1               ;wait for the clock to go low
