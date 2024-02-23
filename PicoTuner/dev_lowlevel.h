@@ -61,16 +61,17 @@ static volatile bool configured = false;
 // Global data buffer for EP0
 static uint8_t ep0_buf[64];
 
-//Global buffer for MPSSE commands from Host
+//Global buffer for MPSSE commands from Host 
 
-#define COMMANDBUFSIZE 4096
+#define COMMANDBUFSIZE 65536
 static uint8_t commandBuf[COMMANDBUFSIZE];               
-static uint16_t commandBufInPointer;
-static uint16_t commandBufOutPointer;
+static uint32_t commandBufInPointer;
+static uint32_t commandBufOutPointer;
 
 //Global buffer for MPSSE results to Host
-static uint8_t resultBuf[64];
+static uint8_t resultBuf[1024];                             //allow for more than one packet of result data.
 static uint16_t resultBufCount;
+volatile bool resultSent;
 
 //Global circular buffer for TS data to Host
 #define TSBUFSIZE 512  
@@ -289,7 +290,7 @@ void usb_device_init() {
  *
  * @param ep, the endpoint configuration
  * @return true
- * @return false
+ * @return falsesendResult
  */
 static inline bool ep_is_tx(struct usb_endpoint_configuration *ep) {
     return ep->descriptor->bEndpointAddress & USB_DIR_IN;
@@ -617,14 +618,23 @@ void ep0_out_handler(uint8_t *buf, uint16_t len)
 
 void sendResult(void)
 {
+  unsigned long to;
+  resultSent = false;
+  noInterrupts();
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP81_IN_ADDR);
     usb_start_transfer(ep, resultBuf, resultBufCount);
+    resultBufCount = 2;                   //reset the buffer allowing for the two byte header.
+  interrupts();  
+
+  to = millis();
+  while((!resultSent)&&(millis() < (to + 500)));                                                                        
 }
+
 // Device specific functions
 //EP81 Send MPSSE results to Host. This function is called when the transfer has completed
 void ep81_in_handler(uint8_t *buf, uint16_t len) 
 {
-        resultBufCount = 2;                   //reset the buffer allowing for the two byte header. 
+  resultSent = true;
 }
 
 //EP2 Receives MPSSE commands from Host and adds then to the circular command buffer
@@ -639,7 +649,7 @@ void ep2_out_handler(uint8_t *buf, uint16_t len)
     usb_start_transfer(usb_get_endpoint_configuration(EP2_OUT_ADDR), NULL, 64);
 }
 
-int commandsAvailable(void)
+uint32_t commandsAvailable(void)
 {
   if(commandBufInPointer >= commandBufOutPointer)
   {

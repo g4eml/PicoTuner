@@ -18,7 +18,7 @@
  */
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0x00
-#define VERSIONMINOR 0x05                         
+#define VERSIONMINOR 0x06                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -193,12 +193,12 @@ void loop1()
 
    if((TS2BufsAvailable() >= 1 )&&(!TS2TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
   {
-    sendTS2(TSNORMAL);
+    sendTS2NI(TSNORMAL);
   }
 
   if((millis() > EP83Timeout)&&(!TS2TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
   {
-    sendTS2(TSSTATUS);
+    sendTS2NI(TSSTATUS);
     dma_channel_set_irq0_enabled(DMA2Chan, false);
     dma_channel_abort(DMA2Chan);
     dma_channel_acknowledge_irq0(DMA2Chan);
@@ -209,12 +209,12 @@ void loop1()
 
    if((TS1BufsAvailable() >= 1 )&&(!TS1TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
   {
-    sendTS1(TSNORMAL);
+    sendTS1NI(TSNORMAL);
   }
 
   if((millis() > EP84Timeout)&&(!TS1TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
   {
-    sendTS1(TSSTATUS);
+    sendTS1NI(TSSTATUS);
     dma_channel_set_irq1_enabled(DMA1Chan, false);
     dma_channel_abort(DMA1Chan);
     dma_channel_acknowledge_irq1(DMA1Chan);
@@ -385,6 +385,19 @@ void DMA1_handler()
 }
 
 
+void sendTS2NI(int mode)
+{
+  noInterrupts();
+  sendTS2(mode);
+  interrupts();
+}
+
+void sendTS1NI(int mode)
+{
+  noInterrupts();
+  sendTS1(mode);
+  interrupts();
+}
 
 void clearBuffers(void)
 {
@@ -518,32 +531,33 @@ void processCommands(void)
 void shiftBitsIn(int count)
 {
   int val = 0;
-
+  noInterrupts();
   for(int c= count ; c > 0 ; c--)
     {
       pio_sm_put_blocking(pioa, sm_2, (0x02 <<2 ) + 0x02);            //set SCL High with SDA HI Z
-      delayMicroseconds(2);
+      delayMicroseconds(1);
       val=(val<<1) + (digitalRead(SDA) ? 1:0);                       //shift in the data bit
       pio_sm_put_blocking(pioa, sm_2, (0x02 <<2 ) + 0x00);            //set SCL Low with SDA HI Z
-      delayMicroseconds(2);
+      delayMicroseconds(1);
     }
-
+   interrupts();
   resultBuf[resultBufCount++] = val;
 }
 
 //shift out one byte of data MSB first using the 3 bit State machine
 void shiftByteOut(int byte)
 {
+  noInterrupts();
   for(int c= 8 ; c > 0 ; c--)
     {
       pio_sm_put_blocking(pioa, sm_2, (0x03 <<2 ) + ((byte & 0x80) ? 1:0));            //set SDA with SCL Low
-      delayMicroseconds(2);
+      delayMicroseconds(1);
       pio_sm_put_blocking(pioa, sm_2, (0x03 <<2 ) + ((byte & 0x80) ? 3:2));            //set SDA with SCL High
-      delayMicroseconds(2);
+      delayMicroseconds(1);
       pio_sm_put_blocking(pioa, sm_2, (0x03 <<2 ) + ((byte & 0x80) ? 1:0));            //set SDA with SCL LOW
       byte=byte<<1;
     }
-
+   interrupts();
 
 }
 
