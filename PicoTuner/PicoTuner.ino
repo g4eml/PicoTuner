@@ -18,7 +18,7 @@
  */
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0x00
-#define VERSIONMINOR 0x06                         
+#define VERSIONMINOR 0x07                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -111,11 +111,9 @@ unsigned long lastmillis =0;
 #define TSTIMEOUT  20                //20 ms timeout for LEDs
 
 
-//Core selection seems critical. the Stack from Core 0 can overlap the stack from core 1 in some circumstances. 
-//so we are using core 1 for most of the stack intensive work and Core 0 for the time critical but less stack intensive work. 
-//setup() initialises Core 1 of the RP2040.
-//Core 1 does most of the work. 
-void setup1() 
+//setup() initialises Core 0 of the RP2040.
+//Core 0 does most of the work. 
+void setup() 
 {
    pinMode(DEBUG1,OUTPUT);
    pinMode(DEBUG2,OUTPUT);
@@ -182,9 +180,9 @@ void setup1()
 
 }
 
-//loop1() uses Core 1 of the RP2040
-//Core 1 does most of the work.
-void loop1() 
+//loop() uses Core 0 of the RP2040
+//Core 0 does most of the work.
+void loop() 
 {
   if(commandsAvailable() > 0)
     {
@@ -250,9 +248,9 @@ void loop1()
 
 }
 
-//setup() initialises Core 0 of the RP2040.
-//Core 0 does the high priority work   
-void setup()
+//setup1() initialises Core 1 of the RP2040.
+//Core 1 does the high priority work   
+void setup1()
 {
   //Setup DMA for TS2
 
@@ -312,9 +310,9 @@ void setup()
 }
 
 
-//loop() uses Core 0 of the RP2040
-//Core 0 does the high priority work. Handles the DMA and re-formats the TS data from the PIO device and saves it to the TS buffers.
-void loop()
+//loop1() uses Core 1 of the RP2040
+//Core 1 does the high priority work. Handles the DMA and re-formats the TS data from the PIO device and saves it to the TS buffers.
+void loop1()
 {
   union W
   {

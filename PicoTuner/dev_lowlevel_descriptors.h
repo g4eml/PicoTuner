@@ -47,7 +47,7 @@ struct usb_device_configuration {
 
 
 // EP0 IN and OUT
-static const struct usb_endpoint_descriptor ep0_out = {
+const struct usb_endpoint_descriptor ep0_out = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
         .bDescriptorType  = USB_DT_ENDPOINT,
         .bEndpointAddress = EP0_OUT_ADDR, // EP number 0, OUT from host (rx to device)
@@ -56,7 +56,7 @@ static const struct usb_endpoint_descriptor ep0_out = {
         .bInterval        = 0
 };
 
-static const struct usb_endpoint_descriptor ep0_in = {
+const struct usb_endpoint_descriptor ep0_in = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
         .bDescriptorType  = USB_DT_ENDPOINT,
         .bEndpointAddress = EP0_IN_ADDR, // EP number 0, OUT from host (rx to device)
@@ -66,7 +66,7 @@ static const struct usb_endpoint_descriptor ep0_in = {
 };
 
 // Descriptors
-static const struct usb_device_descriptor device_descriptor = {
+const struct usb_device_descriptor device_descriptor = {
         .bLength         = sizeof(struct usb_device_descriptor),
         .bDescriptorType = USB_DT_DEVICE,
         .bcdUSB          = 0x0110, // USB 1.1 device
@@ -83,7 +83,7 @@ static const struct usb_device_descriptor device_descriptor = {
         .bNumConfigurations = 1    // One configuration
 };
 
-static const struct usb_interface_descriptor interface_descriptor1 = {
+const struct usb_interface_descriptor interface_descriptor1 = {
         .bLength            = sizeof(struct usb_interface_descriptor),
         .bDescriptorType    = USB_DT_INTERFACE,
         .bInterfaceNumber   = 0,
@@ -95,7 +95,7 @@ static const struct usb_interface_descriptor interface_descriptor1 = {
         .iInterface         = 3
 };
 
-static const struct usb_endpoint_descriptor ep81_in = {
+const struct usb_endpoint_descriptor ep81_in = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
         .bDescriptorType  = USB_DT_ENDPOINT,
         .bEndpointAddress = EP81_IN_ADDR, // EP number 1, IN to Host
@@ -104,7 +104,7 @@ static const struct usb_endpoint_descriptor ep81_in = {
         .bInterval        = 0
 };
 
-static const struct usb_endpoint_descriptor ep2_out = {
+const struct usb_endpoint_descriptor ep2_out = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
         .bDescriptorType  = USB_DT_ENDPOINT,
         .bEndpointAddress = EP2_OUT_ADDR, // EP number 2, Out from Host
@@ -113,7 +113,7 @@ static const struct usb_endpoint_descriptor ep2_out = {
         .bInterval        = 0
 };
 
-static const struct usb_interface_descriptor interface_descriptor2 = {
+const struct usb_interface_descriptor interface_descriptor2 = {
         .bLength            = sizeof(struct usb_interface_descriptor),
         .bDescriptorType    = USB_DT_INTERFACE,
         .bInterfaceNumber   = 1,
@@ -125,7 +125,7 @@ static const struct usb_interface_descriptor interface_descriptor2 = {
         .iInterface         = 4
 };
 
-static const struct usb_endpoint_descriptor ep83_in = {
+const struct usb_endpoint_descriptor ep83_in = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
         .bDescriptorType  = USB_DT_ENDPOINT,
         .bEndpointAddress = EP83_IN_ADDR, // EP number 3, TS2 In to Host
@@ -134,7 +134,7 @@ static const struct usb_endpoint_descriptor ep83_in = {
         .bInterval        = 0
 };
 
-static const struct usb_endpoint_descriptor ep84_in = {
+const struct usb_endpoint_descriptor ep84_in = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
         .bDescriptorType  = USB_DT_ENDPOINT,
         .bEndpointAddress = EP84_IN_ADDR, // EP number 84, TS 1 In to  Host
@@ -144,7 +144,7 @@ static const struct usb_endpoint_descriptor ep84_in = {
 };
 
 
-static const struct usb_configuration_descriptor config_descriptor = {
+const struct usb_configuration_descriptor config_descriptor = {
         .bLength         = sizeof(struct usb_configuration_descriptor),
         .bDescriptorType = USB_DT_CONFIG,
         .wTotalLength    = (sizeof(config_descriptor) +
@@ -161,13 +161,13 @@ static const struct usb_configuration_descriptor config_descriptor = {
         .bMaxPower = 0xFA         // 500ma
 };
 
-static const unsigned char lang_descriptor[] = {
+const unsigned char lang_descriptor[] = {
         4,         // bLength
         0x03,      // bDescriptorType == String Descriptor
         0x09, 0x04 // language id = us english
 };
 
-static const unsigned char *descriptor_strings[] = {
+const unsigned char *descriptor_strings[] = {
         (unsigned char *) "BATC",    // Vendor
         (unsigned char *) "BATC PicoTuner", // Product
        (unsigned char *) "BATC PicoTuner i2c", // Interface 1

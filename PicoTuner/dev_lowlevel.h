@@ -54,38 +54,39 @@ unsigned long EP84Timeout;
 #define EP84TO 16       //timeout value in ms for EP83 packets. Will send a zero lenght packet if this timeout has expired. 
 
 // Global device address
-static bool should_set_address = false;
-static uint8_t dev_addr = 0;
-static volatile bool configured = false;
+bool should_set_address = false;
+uint8_t dev_addr = 0;
+volatile bool configured = false;
 
 // Global data buffer for EP0
-static uint8_t ep0_buf[64];
+uint8_t ep0_buf[64];
 
 //Global buffer for MPSSE commands from Host 
 
-#define COMMANDBUFSIZE 65536
-static uint8_t commandBuf[COMMANDBUFSIZE];               
-static uint32_t commandBufInPointer;
-static uint32_t commandBufOutPointer;
+#define COMMANDBUFSIZE 65536                        //probably much too big but we do have a lot of commands on retuning so better safe than sorry.
+uint8_t commandBuf[COMMANDBUFSIZE];               
+uint32_t commandBufInPointer;
+uint32_t commandBufOutPointer;
 
 //Global buffer for MPSSE results to Host
-static uint8_t resultBuf[1024];                             //allow for more than one packet of result data.
-static uint16_t resultBufCount;
+uint8_t resultBuf[1024];                             //allow for more than one packet of result data (unlikely but possible)
+uint16_t resultBufCount;
 volatile bool resultSent;
 
 //Global circular buffer for TS data to Host
 #define TSBUFSIZE 512  
-#define TSBUFNUM 20                             //This is the buffer size used by Longmynd It is Unlikely that we ever get near this value          
-static uint8_t TS2Buf[TSBUFNUM][TSBUFSIZE];                //20 512 byte buffers. 
-static uint16_t TS2BufInPointer;
-static uint16_t TS2BufOutPointer;
-static int TS2BufInNumber;
-static int TS2BufOutNumber;
-static uint8_t TS1Buf[TSBUFNUM][TSBUFSIZE];                //20 512 byte buffers. 
-static uint16_t TS1BufInPointer;
-static uint16_t TS1BufOutPointer;
-static int TS1BufInNumber;
-static int TS1BufOutNumber;
+#define TSBUFNUM 20                                 //This is the buffer size used by Longmynd It is Unlikely that we ever get near this value          
+uint8_t TS2Buf[TSBUFNUM][TSBUFSIZE];                //20 512 byte buffers. 
+uint16_t TS2BufInPointer;
+uint16_t TS2BufOutPointer;
+uint16_t TS2BufInNumber;
+uint16_t TS2BufOutNumber;
+uint8_t TS1Buf[TSBUFNUM][TSBUFSIZE];                //20 512 byte buffers. 
+uint16_t TS1BufInPointer;
+uint16_t TS1BufOutPointer;
+uint16_t TS1BufInNumber;
+uint16_t TS1BufOutNumber;
+
 #define TSZLP 0
 #define TSSTATUS 1
 #define TSNORMAL 2
@@ -97,7 +98,7 @@ volatile bool TS2shortPacketSent = false;
 volatile bool TS1shortPacketSent = false;
 
 // Struct defining the device configuration
-static struct usb_device_configuration dev_config = {
+struct usb_device_configuration dev_config = {
         .device_descriptor = &device_descriptor,
         .interface_descriptor1 = &interface_descriptor1,
         .interface_descriptor2 = &interface_descriptor2,
@@ -183,7 +184,7 @@ struct usb_endpoint_configuration *usb_get_endpoint_configuration(uint8_t addr) 
 uint8_t usb_prepare_string_descriptor(const unsigned char *str) {
     // 2 for bLength + bDescriptorType + strlen * 2 because string is unicode. i.e. other byte will be 0
     uint8_t bLength = 2 + (strlen((const char *)str) * 2);
-    static const uint8_t bDescriptorType = 0x03;
+    const uint8_t bDescriptorType = 0x03;
 
     volatile uint8_t *buf = &ep0_buf[0];
     *buf++ = bLength;
@@ -206,7 +207,7 @@ uint8_t usb_prepare_string_descriptor(const unsigned char *str) {
  * @param buf
  * @return uint32_t
  */
-static inline uint32_t usb_buffer_offset(volatile uint8_t *buf) {
+inline uint32_t usb_buffer_offset(volatile uint8_t *buf) {
     return (uint32_t) buf ^ (uint32_t) usb_dpram;
 }
 
@@ -292,7 +293,7 @@ void usb_device_init() {
  * @return true
  * @return falsesendResult
  */
-static inline bool ep_is_tx(struct usb_endpoint_configuration *ep) {
+inline bool ep_is_tx(struct usb_endpoint_configuration *ep) {
     return ep->descriptor->bEndpointAddress & USB_DIR_IN;
 }
 
@@ -508,7 +509,7 @@ void usb_handle_setup_packet(void) {
  *
  * @param ep, the endpoint to notify.
  */
-static void usb_handle_ep_buff_done(struct usb_endpoint_configuration *ep) {
+void usb_handle_ep_buff_done(struct usb_endpoint_configuration *ep) {
     uint32_t buffer_control = *ep->buffer_control;
     // Get the transfer length for this endpoint
     uint16_t len = buffer_control & USB_BUF_CTRL_LEN_MASK;
@@ -524,7 +525,7 @@ static void usb_handle_ep_buff_done(struct usb_endpoint_configuration *ep) {
  * @param ep_num
  * @param in
  */
-static void usb_handle_buff_done(uint ep_num, bool in) {
+void usb_handle_buff_done(uint ep_num, bool in) {
     uint8_t ep_addr = ep_num | (in ? USB_DIR_IN : 0);
     for (uint i = 0; i < USB_NUM_ENDPOINTS; i++) {
         struct usb_endpoint_configuration *ep = &dev_config.endpoints[i];
@@ -542,7 +543,7 @@ static void usb_handle_buff_done(uint ep_num, bool in) {
  * buffers have been sent / received. Notify each endpoint where this
  * is the case.
  */
-static void usb_handle_buff_status() {
+void usb_handle_buff_status() {
     uint32_t buffers = usb_hw->buf_status;
     uint32_t remaining_buffers = buffers;
 
@@ -643,7 +644,7 @@ void ep2_out_handler(uint8_t *buf, uint16_t len)
       for(int c = 0; c < len ; c++)
       {
         commandBuf[commandBufInPointer++] = buf[c];
-        if(commandBufInPointer == COMMANDBUFSIZE ) commandBufInPointer = 0;
+        if(commandBufInPointer >= COMMANDBUFSIZE ) commandBufInPointer = 0;
       }
      // Get ready to rx again from host
     usb_start_transfer(usb_get_endpoint_configuration(EP2_OUT_ADDR), NULL, 64);
@@ -651,20 +652,22 @@ void ep2_out_handler(uint8_t *buf, uint16_t len)
 
 uint32_t commandsAvailable(void)
 {
+  uint32_t ret;
   if(commandBufInPointer >= commandBufOutPointer)
   {
-    return commandBufInPointer - commandBufOutPointer;
+    ret = commandBufInPointer - commandBufOutPointer;
   }
   else
   {
-    return commandBufInPointer + (COMMANDBUFSIZE - commandBufOutPointer);
+    ret= commandBufInPointer + (COMMANDBUFSIZE - commandBufOutPointer);
   }
+  return ret;
 }
 
 int getNextCommand(void)
 {
   int r = commandBuf[commandBufOutPointer++];
-  if(commandBufOutPointer == COMMANDBUFSIZE) commandBufOutPointer = 0;
+  if(commandBufOutPointer >= COMMANDBUFSIZE) commandBufOutPointer = 0;
   return r;
 }
 
