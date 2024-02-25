@@ -18,7 +18,7 @@
  */
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0x00
-#define VERSIONMINOR 0x07                         
+#define VERSIONMINOR 0x08                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -488,6 +488,11 @@ void processCommands(void)
           resultBuf[resultBufCount++] = VERSIONMAJOR;
           resultBuf[resultBufCount++] = VERSIONMINOR;
           sendResult();
+          break; 
+
+        // New command to force Rp2040 into BOOTSEL mode for software update
+        case 0xBB:
+            reset_usb_boot(0,0);
           break; 
       
         //Unrecognised commands  all return Bad Command response
