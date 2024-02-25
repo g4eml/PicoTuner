@@ -1,4 +1,4 @@
 Version 0.8 adds a new command which will force the PicoTuner to enter BOOTSEL mode ready for uploading new firmware. 
-This is as an altenative to using the BOOTSEL button on the Pico. Usefull to avoid opening the case. 
+This is as an altenative to using the BOOTSEL button on the Pico. Useful to avoid opening the case. 
 New command is the single character 0xBB sent to Endpoint 2. The Pico will then immediately enter BOOTSEL  mode. 
 A python script and a windows batch file are provided to send the necessary command. 
