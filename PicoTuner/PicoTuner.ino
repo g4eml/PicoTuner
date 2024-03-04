@@ -18,7 +18,7 @@
  */
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0x00
-#define VERSIONMINOR 0x08                         
+#define VERSIONMINOR 0x09                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -58,7 +58,7 @@
 #define ETHRSTN 20    //Reserved for Ethernet Hat Reset Low                       
 #define ETHINTN 21    //Reserved for Ethernet Hat Interrupt Low
 
-#define SPARE22 22    //
+#define ENA3V3 22    //Enable 3V3 Output. Set high when USB is fully initialised. 
 
 #define LED 25         //Onboard LED
 
@@ -128,6 +128,11 @@ void setup()
    pinMode(ETHRSTN,OUTPUT);
    digitalWrite(ETHRSTN,LOW);
 
+   //Configure the Power Control Pin
+   
+   pinMode(ENA3V3,OUTPUT);
+   digitalWrite(ENA3V3,LOW);
+
    //initialise the PIO state machines
 
    // add the 3 bit port program and return its start location 
@@ -173,6 +178,8 @@ void setup()
     while (!configured) {
         tight_loop_contents();
     }
+
+    digitalWrite(ENA3V3, HIGH);
 
     // Get ready to rx MPSSE commands from host
     
