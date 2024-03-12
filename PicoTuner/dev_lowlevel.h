@@ -46,7 +46,7 @@ void ep84_in_handler(uint8_t *buf, uint16_t len);
 void sendTS2(bool sendheader);
 void sendTS1(bool sendheader);
 
-void clearBuffers(void);
+void clearBuffers(int sel);
 
 unsigned long EP83Timeout;
 #define EP83TO 16       //timeout value in ms for EP83 packets. Will send a zero lenght packet if this timeout has expired. 
@@ -322,7 +322,7 @@ void usb_start_transfer(struct usb_endpoint_configuration *ep, uint8_t *buf, uin
     ep->next_pid ^= 1u;
 
     *ep->buffer_control = val;
-    asm volatile("nop \n nop \n nop \n nop");                  //Tiny delay to ensure Controller has received the data                                   
+    asm volatile("nop \n nop \n nop \n nop \n nop \n nop \n nop");                  //Tiny delay to ensure Controller has received the data                                   
     *ep->buffer_control = val | USB_BUF_CTRL_AVAIL;           //set the available bit as the last thing. (See RP2040 datasheet 4.1.2.5.1. for reason.)
 }
 
@@ -476,7 +476,7 @@ void usb_handle_setup_packet(void) {
         }
     } else if (req_direction == FTDI_DEVICE_OUT_REQTYPE)
     {
-        clearBuffers();
+        clearBuffers(0);
         usb_acknowledge_out_request();
     
     } else if (req_direction == USB_DIR_IN) 
@@ -735,7 +735,6 @@ void sendTS2(int mode)
           }
       break;
     }
-    digitalWrite(LED,1);
     EP83Timeout = millis() + EP83TO;
 }
 
@@ -782,7 +781,6 @@ void sendTS1(int mode)
 //EP83 Send TS2 Data To Host This function gets called when the transfer has completed. 
 void ep83_in_handler(uint8_t *buf, uint16_t len) 
 {
-     digitalWrite(LED,0);
      if(TS2BufsAvailable() > 0)               //if we still have data avialable then continue the bulk transfer or send a ZLP if necessary
      {
       sendTS2(TSNORMAL);                      //send the next 64 bytes
@@ -803,7 +801,7 @@ void ep84_in_handler(uint8_t *buf, uint16_t len)
 {
      if(TS1BufsAvailable() > 0)               //if we still have data avialable then continue the bulk transfer or send a ZLP if necessary
      {
-      sendTS1(TSNORMAL);                      //send the next 64 bytes
+       sendTS1(TSNORMAL);                      //send the next 64 bytes
      }
      else if(TS1shortPacketSent)                //we have already sent the short packet so we are finished
      {

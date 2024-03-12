@@ -17,8 +17,8 @@
  * 
  */
 //Version Number BCD   vvrr
-#define VERSIONMAJOR 0x00
-#define VERSIONMINOR 0x09                         
+#define VERSIONMAJOR 0
+#define VERSIONMINOR 10                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -110,7 +110,6 @@ int TS2ActiveTimeout = 0;
 unsigned long lastmillis =0;
 #define TSTIMEOUT  20                //20 ms timeout for LEDs
 
-
 //setup() initialises Core 0 of the RP2040.
 //Core 0 does most of the work. 
 void setup() 
@@ -161,7 +160,7 @@ void setup()
     irq_set_exclusive_handler(5,isr_usbctrl);
 
    // reset all of the  buffers. 
-    clearBuffers();
+    clearBuffers(0);
 
     for(int i=0;i<TSBUFNUM;i++)
       {
@@ -191,6 +190,8 @@ void setup()
 //Core 0 does most of the work.
 void loop() 
 {
+  digitalWrite(LED , (millis() & 0x100) ==0);                 //flash the LED about 2 times per second 
+
   if(commandsAvailable() > 0)
     {
       processCommands();
@@ -209,7 +210,9 @@ void loop()
     dma_channel_acknowledge_irq0(DMA2Chan);
     pio_sm_restart(piob, sm_TS2);
     dma_channel_set_irq0_enabled(DMA2Chan, true);
-    dma_channel_start(DMA2Chan);
+    dma_hw->ints0 = 1u << DMA2Chan;
+    dma_channel_set_write_addr(DMA2Chan, TS2DMA, true);
+    clearBuffers(2);
   }
 
    if((TS1BufsAvailable() >= 1 )&&(!TS1TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
@@ -225,7 +228,9 @@ void loop()
     dma_channel_acknowledge_irq1(DMA1Chan);
     pio_sm_restart(pioa, sm_TS1);
     dma_channel_set_irq1_enabled(DMA1Chan, true);
-    dma_channel_start(DMA1Chan);
+    dma_hw->ints1 = 1u << DMA1Chan;
+    dma_channel_set_write_addr(DMA1Chan, TS1DMA, true);
+    clearBuffers(1);
   }
 
   if(millis() > lastmillis)             //every millisecond
@@ -404,21 +409,34 @@ void sendTS1NI(int mode)
   interrupts();
 }
 
-void clearBuffers(void)
+void clearBuffers(int sel)
 {
-    commandBufInPointer = 0;
-    commandBufOutPointer = 0;
+  if((sel == 2) || (sel == 0))
+  {
     TS2BufInPointer = 2;
     TS2BufOutPointer = 0;
     TS2BufInNumber = 0;
     TS2BufOutNumber = 0;
+  }
+
+
+   if((sel == 1) || (sel == 0))
+   {
     TS1BufInPointer = 2;
     TS1BufOutPointer = 0;
     TS1BufInNumber = 0;
     TS1BufOutNumber = 0;
+   }
+
+
+   if(sel == 0)
+   {
+    commandBufInPointer = 0;
+    commandBufOutPointer = 0;
     resultBuf[0] = 0;               //It seems the FTDI Device adds a two byte header to all results. 
     resultBuf[1] = 0;               //We don't know what this should be but zeros seems to work with Longmynd
     resultBufCount = 2;             //
+   }
 }
 
 //process all available MPSSE commands. 
@@ -503,6 +521,7 @@ void processCommands(void)
           break; 
       
         //Unrecognised commands  all return Bad Command response
+        default :
           resultBuf[resultBufCount++] = 0xFA;
           resultBuf[resultBufCount++] = command;
           sendResult();
