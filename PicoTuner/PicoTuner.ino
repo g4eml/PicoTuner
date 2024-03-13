@@ -17,8 +17,8 @@
  * 
  */
 //Version Number BCD   vvrr
-#define VERSIONMAJOR 0
-#define VERSIONMINOR 10                         
+#define VERSIONMAJOR 00
+#define VERSIONMINOR 110                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -76,6 +76,27 @@
 #include "pico/stdlib.h"
 #include <string.h>
 #include "dev_lowlevel.h"
+#include <SPI.h>
+#include "FastUDP.h"
+
+
+// buffers for receiving and sending Control UDP data
+uint8_t UDPCommandBuffer[2048];             // buffer to hold incoming UDP packet,
+uint8_t  UDPReplyBuffer[2048];        // data to send back
+
+
+#define UDPPACSIZE 1316                    //size of each TS packet 7 * 188 byte TS packets
+uint8_t UDPTS1Buffer[2][UDPPACSIZE];
+uint8_t UDPTS2Buffer[2][UDPPACSIZE];
+uint16_t UDPTS1BufPointer = 0;
+uint8_t UDPTS1BufIndex = 0;                                                                                                                                                                                                                                                                                                                                                                                            
+bool UDPTS1Available = false;
+uint16_t UDPTS2BufPointer = 0;
+uint8_t UDPTS2BufIndex = 0;
+bool UDPTS2Available = false;
+
+
+//PIO Devices
 
 #include "Pio_Parallel_2.pio.h"
 #include "Pio_Parallel_8.pio.h"
@@ -110,6 +131,7 @@ int TS2ActiveTimeout = 0;
 unsigned long lastmillis =0;
 #define TSTIMEOUT  20                //20 ms timeout for LEDs
 
+
 //setup() initialises Core 0 of the RP2040.
 //Core 0 does most of the work. 
 void setup() 
@@ -118,19 +140,17 @@ void setup()
    pinMode(DEBUG2,OUTPUT);
    pinMode(LED,OUTPUT);
 
-   //initialise pins for future Ethernet module
-   pinMode(ETHSPTX,INPUT_PULLUP);
-   pinMode(ETHSPRX,INPUT_PULLUP);
-   pinMode(ETHSPCK,INPUT_PULLUP);
-   pinMode(ETHSPCS,INPUT_PULLUP);
-   pinMode(ETHINTN,INPUT_PULLUP);
-   pinMode(ETHRSTN,OUTPUT);
-   digitalWrite(ETHRSTN,LOW);
-
-   //Configure the Power Control Pin
+  //Configure the Power Control Pin
    
    pinMode(ENA3V3,OUTPUT);
    digitalWrite(ENA3V3,LOW);
+
+  // Set SPI for the Wiznet Ethernet chip
+  SPI.setRX(16); 
+  SPI.setCS(17);
+  SPI.setSCK(18);
+  SPI.setTX(19);
+
 
    //initialise the PIO state machines
 
@@ -173,16 +193,10 @@ void setup()
 
     usb_device_init();
 
-    // Wait until configured
-    while (!configured) {
-        tight_loop_contents();
-    }
-
-    digitalWrite(ENA3V3, HIGH);
-
-    // Get ready to rx MPSSE commands from host
-    
-    usb_start_transfer(usb_get_endpoint_configuration(EP2_OUT_ADDR), NULL, 64);
+  //Start the Ethernet if it is fitted. 
+  eth.setSPISpeed(30000000);
+  lwipPollingPeriod(1);
+  eth.begin();
 
 }
 
@@ -192,46 +206,30 @@ void loop()
 {
   digitalWrite(LED , (millis() & 0x100) ==0);                 //flash the LED about 2 times per second 
 
+  if(EthernetConnected)
+    {
+      handleEthernet();
+    }
+  else
+    {
+      testEthernet();
+    }
+
+  if(USBConnected)
+    {
+      handleUSB();
+    }
+  else
+    {
+      testUSB();
+    }
+
+
   if(commandsAvailable() > 0)
     {
       processCommands();
     } 
 
-   if((TS2BufsAvailable() >= 1 )&&(!TS2TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
-  {
-    sendTS2NI(TSNORMAL);
-  }
-
-  if((millis() > EP83Timeout)&&(!TS2TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
-  {
-    sendTS2NI(TSSTATUS);
-    dma_channel_set_irq0_enabled(DMA2Chan, false);
-    dma_channel_abort(DMA2Chan);
-    dma_channel_acknowledge_irq0(DMA2Chan);
-    pio_sm_restart(piob, sm_TS2);
-    dma_channel_set_irq0_enabled(DMA2Chan, true);
-    dma_hw->ints0 = 1u << DMA2Chan;
-    dma_channel_set_write_addr(DMA2Chan, TS2DMA, true);
-    clearBuffers(2);
-  }
-
-   if((TS1BufsAvailable() >= 1 )&&(!TS1TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
-  {
-    sendTS1NI(TSNORMAL);
-  }
-
-  if((millis() > EP84Timeout)&&(!TS1TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
-  {
-    sendTS1NI(TSSTATUS);
-    dma_channel_set_irq1_enabled(DMA1Chan, false);
-    dma_channel_abort(DMA1Chan);
-    dma_channel_acknowledge_irq1(DMA1Chan);
-    pio_sm_restart(pioa, sm_TS1);
-    dma_channel_set_irq1_enabled(DMA1Chan, true);
-    dma_hw->ints1 = 1u << DMA1Chan;
-    dma_channel_set_write_addr(DMA1Chan, TS1DMA, true);
-    clearBuffers(1);
-  }
 
   if(millis() > lastmillis)             //every millisecond
   {
@@ -242,20 +240,20 @@ void loop()
 
   if(TS1ActiveTimeout > 0)
     {
-      digitalWrite(DEBUG1,1);
+//      digitalWrite(DEBUG1,1);
     }
     else
     {
-      digitalWrite(DEBUG1,0);
+//      digitalWrite(DEBUG1,0);
     }
 
   if(TS2ActiveTimeout > 0)
     {
-      digitalWrite(DEBUG2,1);
+ //     digitalWrite(DEBUG2,1);
     }
     else
     {
-      digitalWrite(DEBUG2,0);
+//      digitalWrite(DEBUG2,0);
     }
 
 }
@@ -340,13 +338,26 @@ void loop1()
             wor.w = TS2DMA[i];                 //Get the next available 4 bytes of the TS packet  
             for(int b=3;b>=0;b--)                              //and copy them as bytes to the USB buffer. 
               {
-                TS2Buf[TS2BufInNumber][TS2BufInPointer++] = wor.b[b];
-                if(TS2BufInPointer >= TSBUFSIZE)               //if this buffer is full
-                  {
-                    TS2BufInPointer = 2;                       //move on to the next beffur
-                    TS2BufInNumber++;
+                if(USBConnected)
+                {
+                  TS2Buf[TS2BufInNumber][TS2BufInPointer++] = wor.b[b];
+                  if(TS2BufInPointer >= TSBUFSIZE)               //if this buffer is full
+                    {
+                      TS2BufInPointer = 2;                       //move on to the next beffur
+                        TS2BufInNumber++;
                     if(TS2BufInNumber >= TSBUFNUM) TS2BufInNumber = 0;
-                  }
+                    }
+                  if(EthernetConnected)
+                    {
+                      UDPTS2Buffer[UDPTS2BufIndex][UDPTS2BufPointer++] = wor.b[b];
+                      if(UDPTS2BufPointer >= UDPPACSIZE)
+                        {
+                          ++UDPTS2BufIndex %= 2 ;                          
+                          UDPTS2BufPointer = 0;
+                          UDPTS2Available = true;
+                        }
+                    }
+                }
              }
          }
       TS2DMAAvailable = false;   
@@ -360,12 +371,25 @@ void loop1()
             wor.w= TS1DMA[i];                 //Get the next available 4 bytes of the TS packet  
             for(int b=3;b>=0;b--)                              //and copy them to the buffer. 
               {
-                TS1Buf[TS1BufInNumber][TS1BufInPointer++] = wor.b[b];
-                if(TS1BufInPointer >= TSBUFSIZE)               //if this buffer is full
+                if(USBConnected)
+                {
+                  TS1Buf[TS1BufInNumber][TS1BufInPointer++] = wor.b[b];
+                  if(TS1BufInPointer >= TSBUFSIZE)               //if this buffer is full
+                    {
+                      TS1BufInPointer = 2;                       //move on to the next beffur
+                      TS1BufInNumber++;
+                      if(TS1BufInNumber >= TSBUFNUM) TS1BufInNumber = 0;
+                    }
+                }
+                if(EthernetConnected)
                   {
-                    TS1BufInPointer = 2;                       //move on to the next beffur
-                    TS1BufInNumber++;
-                    if(TS1BufInNumber >= TSBUFNUM) TS1BufInNumber = 0;
+                    UDPTS1Buffer[UDPTS1BufIndex][UDPTS1BufPointer++] = wor.b[b];
+                    if(UDPTS1BufPointer >= UDPPACSIZE)
+                      {
+                        ++UDPTS1BufIndex %= 2 ;                          
+                        UDPTS1BufPointer = 0;
+                        UDPTS1Available = true;
+                      }
                   }
              }
          }
@@ -394,24 +418,140 @@ void DMA1_handler()
     TS1DMAAvailable = true;        //flag the data is avaiable. 
 }
 
-
-void sendTS2NI(int mode)
+//handles USB sending TS streams
+void handleUSB(void)
 {
-  noInterrupts();
-  sendTS2(mode);
-  interrupts();
+     if((TS2BufsAvailable() >= 1 )&&(!TS2TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
+  {
+      sendTS2(TSNORMAL);
+  }
+
+  if((millis() > EP83Timeout)&&(!TS2TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
+  {
+    sendTS2(TSSTATUS);
+    dma_channel_set_irq0_enabled(DMA2Chan, false);
+    dma_channel_abort(DMA2Chan);
+    dma_channel_acknowledge_irq0(DMA2Chan);
+    pio_sm_restart(piob, sm_TS2);
+    dma_channel_set_irq0_enabled(DMA2Chan, true);
+    dma_hw->ints0 = 1u << DMA2Chan;
+    dma_channel_set_write_addr(DMA2Chan, TS2DMA, true);
+    clearBuffers(2);
+  }
+
+   if((TS1BufsAvailable() >= 1 )&&(!TS1TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
+  {
+    sendTS1(TSNORMAL);
+  }
+
+  if((millis() > EP84Timeout)&&(!TS1TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
+  {
+    sendTS1(TSSTATUS);
+    dma_channel_set_irq1_enabled(DMA1Chan, false);
+    dma_channel_abort(DMA1Chan);
+    dma_channel_acknowledge_irq1(DMA1Chan);
+    pio_sm_restart(pioa, sm_TS1);
+    dma_channel_set_irq1_enabled(DMA1Chan, true);
+    dma_hw->ints1 = 1u << DMA1Chan;
+    dma_channel_set_write_addr(DMA1Chan, TS1DMA, true);
+    clearBuffers(1);
+  }
+
 }
 
-void sendTS1NI(int mode)
+//handles sending the TS streams via ethernet
+void handleEthernet(void)
 {
-  noInterrupts();
-  sendTS1(mode);
-  interrupts();
+  static unsigned long lastpass;
+  IPAddress remoteIP = 0;
+  uint16_t remotePort = 0;
+
+if(millis() > lastpass + 10)
+  {
+    lastpass = millis();
+
+    if(FastUDPAvailable(0) > 0)                   //have we received any commands on Socket Zero?
+    {
+      int len = FastUDPRead(0, &remoteIP, &remotePort, UDPCommandBuffer);
+      UDPCommandBuffer[len] = 0;
+      ControlIP = remoteIP;
+      TS1IP = ControlIP;                        //start sending TS data to this remote address. 
+      TS2IP = ControlIP;     
+      ControlDestPort = remotePort;
+      // send a reply, to the IP address and port that sent us the packet we received
+      UDPReplyBuffer[0] = 'A';
+      UDPReplyBuffer[1] = 'C';
+      UDPReplyBuffer[2] = 'K';
+      FastUDPSend( 0, ControlIP , ControlPort, ControlDestPort , UDPReplyBuffer, 3);
+    }
+  }
+
+
+
+
+  if(UDPTS2Available)
+    {
+       digitalWrite(DEBUG1,1);
+      UDPTS2Available = false;
+      FastUDPSend( 2, TS2IP , TS2Port, TS2Port, UDPTS2Buffer[(UDPTS2BufIndex+1) % 2],UDPPACSIZE);
+      digitalWrite(DEBUG1,0);
+    }
+
+  if(UDPTS1Available) 
+    {
+      UDPTS1Available = false;
+      FastUDPSend( 1, TS1IP , TS1Port, TS1Port, UDPTS1Buffer[(UDPTS1BufIndex+1) % 2],UDPPACSIZE);
+    }
+                                                                                                                                
+}
+
+
+void testEthernet(void)
+{
+if(eth.connected())
+  {
+    switchToFastUDP();                         //If we have detected a wired ethernet connection then we no longer need to use the slow librabry routines. Switch to using the fast UDP routines. 
+    digitalWrite(ENA3V3,HIGH);
+  }
+
+}
+
+
+void testUSB(void)
+{
+  if(USBconfigured)
+    {  
+       usb_start_transfer(usb_get_endpoint_configuration(EP2_OUT_ADDR), NULL, 64);       // Get ready to rx MPSSE commands from host
+       USBConnected = true;
+       digitalWrite(ENA3V3,HIGH);
+    }
+}
+
+//start sending TS2 USB
+void sendTS2(int mode)
+{
+  if(USBConnected)
+  {
+    noInterrupts();
+    USBsendTS2(mode);
+    interrupts();
+  }
+}
+
+//start sending TS2 to USB
+void sendTS1(int mode)
+{
+  if(USBConnected)
+  {
+    noInterrupts();
+    USBsendTS1(mode);
+    interrupts();
+  }
 }
 
 void clearBuffers(int sel)
 {
-  if((sel == 2) || (sel == 0))
+if((sel == 2) || (sel == 0))
   {
     TS2BufInPointer = 2;
     TS2BufOutPointer = 0;
@@ -419,15 +559,13 @@ void clearBuffers(int sel)
     TS2BufOutNumber = 0;
   }
 
-
-   if((sel == 1) || (sel == 0))
+if((sel == 1) || (sel == 0))
    {
     TS1BufInPointer = 2;
     TS1BufOutPointer = 0;
     TS1BufInNumber = 0;
     TS1BufOutNumber = 0;
    }
-
 
    if(sel == 0)
    {
@@ -437,6 +575,7 @@ void clearBuffers(int sel)
     resultBuf[1] = 0;               //We don't know what this should be but zeros seems to work with Longmynd
     resultBufCount = 2;             //
    }
+
 }
 
 //process all available MPSSE commands. 
@@ -521,7 +660,7 @@ void processCommands(void)
           break; 
       
         //Unrecognised commands  all return Bad Command response
-        default :
+        default:
           resultBuf[resultBufCount++] = 0xFA;
           resultBuf[resultBufCount++] = command;
           sendResult();

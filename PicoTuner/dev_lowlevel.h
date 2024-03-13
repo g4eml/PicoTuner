@@ -43,8 +43,8 @@ void ep2_out_handler(uint8_t *buf, uint16_t len);
 void ep83_in_handler(uint8_t *buf, uint16_t len);
 void ep84_in_handler(uint8_t *buf, uint16_t len);
 
-void sendTS2(bool sendheader);
-void sendTS1(bool sendheader);
+void USBsendTS2(int mode);
+void USBsendTS1(int mode);
 
 void clearBuffers(int sel);
 
@@ -56,7 +56,8 @@ unsigned long EP84Timeout;
 // Global device address
 bool should_set_address = false;
 uint8_t dev_addr = 0;
-volatile bool configured = false;
+volatile bool USBconfigured = false;
+bool USBConnected = false;
 
 // Global data buffer for EP0
 uint8_t ep0_buf[64];
@@ -392,7 +393,8 @@ void usb_bus_reset(void) {
     dev_addr = 0;
     should_set_address = false;
     usb_hw->dev_addr_ctrl = 0;
-    configured = false;
+    USBconfigured = false;
+    USBConnected = false;
 }
 
 /**
@@ -447,7 +449,7 @@ void usb_set_device_address(volatile struct usb_setup_packet *pkt) {
 void usb_set_device_configuration(volatile struct usb_setup_packet *pkt) {
     // Only one configuration so just acknowledge the request
     usb_acknowledge_out_request();
-    configured = true;
+    USBconfigured = true;
 }
 
 /**
@@ -700,7 +702,7 @@ int TS1BufsAvailable(void)
 }
 
 //sends the next 64 byte packet of the TS2 buffer
-void sendTS2(int mode)
+void USBsendTS2(int mode)
 {
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP83_IN_ADDR);
     uint8_t sbuf[64];
@@ -739,7 +741,7 @@ void sendTS2(int mode)
 }
 
 //sends the next 64 byte packet of the TS1 buffer
-void sendTS1(int mode)
+void USBsendTS1(int mode)
 {
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP84_IN_ADDR);
     uint8_t sbuf[64];
@@ -783,7 +785,7 @@ void ep83_in_handler(uint8_t *buf, uint16_t len)
 {
      if(TS2BufsAvailable() > 0)               //if we still have data avialable then continue the bulk transfer or send a ZLP if necessary
      {
-      sendTS2(TSNORMAL);                      //send the next 64 bytes
+      USBsendTS2(TSNORMAL);                      //send the next 64 bytes
      }
      else if(TS2shortPacketSent)                //we have already sent the short packet so we are finished
      {
@@ -792,7 +794,7 @@ void ep83_in_handler(uint8_t *buf, uint16_t len)
      }
      else
      {
-      sendTS2(TSZLP);                         //send a Zero Length packet to indicate the transfer has finished. 
+      USBsendTS2(TSZLP);                         //send a Zero Length packet to indicate the transfer has finished. 
      }
 }
 
@@ -801,7 +803,7 @@ void ep84_in_handler(uint8_t *buf, uint16_t len)
 {
      if(TS1BufsAvailable() > 0)               //if we still have data avialable then continue the bulk transfer or send a ZLP if necessary
      {
-       sendTS1(TSNORMAL);                      //send the next 64 bytes
+      USBsendTS1(TSNORMAL);                      //send the next 64 bytes
      }
      else if(TS1shortPacketSent)                //we have already sent the short packet so we are finished
      {
@@ -810,7 +812,7 @@ void ep84_in_handler(uint8_t *buf, uint16_t len)
      }
      else
      {
-      sendTS1(TSZLP);                         //send a Zero Length packet to indicate the transfer has finished. 
+      USBsendTS1(TSZLP);                         //send a Zero Length packet to indicate the transfer has finished. 
      }
 
 }
