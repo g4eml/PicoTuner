@@ -292,7 +292,7 @@ void usb_device_init() {
  *
  * @param ep, the endpoint configuration
  * @return true
- * @return falsesendResult
+ * @return false
  */
 inline bool ep_is_tx(struct usb_endpoint_configuration *ep) {
     return ep->descriptor->bEndpointAddress & USB_DIR_IN;
@@ -619,14 +619,14 @@ void ep0_out_handler(uint8_t *buf, uint16_t len)
       usb_start_transfer(ep, NULL, 0);
 }
 
-void sendResult(void)
+void USBsendResult(void)
 {
   unsigned long to;
   resultSent = false;
   noInterrupts();
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP81_IN_ADDR);
     usb_start_transfer(ep, resultBuf, resultBufCount);
-    resultBufCount = 2;                   //reset the buffer allowing for the two byte header.
+    resultBufCount = 2;
   interrupts();  
 
   to = millis();

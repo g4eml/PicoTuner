@@ -10,6 +10,8 @@ Wiznet5100lwIP eth(WIZCHIPCS); // Parameter is the Chip Select pin
 
 bool EthernetConnected = false;
 
+bool UDPTransferInProgress[3] = {false,false,false};
+
 unsigned int ControlPort = 7300;     //UDP control port to listen on.
 unsigned int TS1Port = 7301;         //UDP port to send TS1 to
 unsigned int TS2Port = 7302;         //UDP Port to send TS2 to
@@ -20,7 +22,7 @@ IPAddress ControlIP(192,168,1,2);     //Default IP Destination for Control Repli
 IPAddress TS1IP(192,168,1,2);         //Default IP Destination for TS1           
 IPAddress TS2IP(192,168,1,2);         //Default IP Destination for TS1   
 
-
+// Local IP settings will be set by DHCP on first connection 
 IPAddress MyIP;
 IPAddress MyGate;
 IPAddress MyNet;
@@ -89,6 +91,7 @@ void switchToFastUDP(void)
     MyGate = eth.gatewayIP();
     MyNet = eth.subnetMask();
     eth.macAddress(MyMac);
+    lwipPollingPeriod(10000);
     eth.end();
     FastUDPInit();
 }
@@ -139,9 +142,23 @@ void FastUDPSend(uint8_t socket , IPAddress DestIP , unsigned int SourcePort , u
    
    wizchip_write_buf(add , Buffer , len);                   //write the data to the Tx buffer
    wizchip_set_reg16(Sn_TX_WR + socket*0x100 , len);        // set TX Write
-
    wizchip_set_reg8(Sn_CR + socket*0x100 , 0x20);           // set send Command
    while(wizchip_read_reg8(Sn_CR + socket *0x100) != 0);    //wait for the command to complete
+   UDPTransferInProgress[socket] = true;
+}
+
+bool FastUDPTransferBusy(uint8_t socket)
+{
+  if(UDPTransferInProgress[socket])
+  {
+    if((wizchip_read_reg8(Sn_IR + socket *0x100) & 0x18) != 0)      //test the transfer complete and timeout flag bits
+     {
+       wizchip_set_reg8(Sn_IR + socket*0x100 , 0x18);           // clear the flag bits
+       UDPTransferInProgress[socket] = false;
+     }
+  }
+
+  return UDPTransferInProgress[socket];
 }
 
 uint16_t FastUDPAvailable(uint8_t socket)

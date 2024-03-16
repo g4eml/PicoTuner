@@ -67,7 +67,7 @@
 
 #define SPARE28 28
 
-
+#include <EEPROM.h>
 #include <hardware/pio.h>
 #include "hardware/dma.h"
 #include "hardware/irq.h"
@@ -81,19 +81,24 @@
 
 
 // buffers for receiving and sending Control UDP data
-uint8_t UDPCommandBuffer[2048];             // buffer to hold incoming UDP packet,
-uint8_t  UDPReplyBuffer[2048];        // data to send back
-
+#define UDPCOMMANDBUFSIZE 2048 
+uint8_t UDPCommandBuffer[UDPCOMMANDBUFSIZE];             // buffer to hold incoming UDP packet,
+uint8_t  UDPReplyBuffer[UDPCOMMANDBUFSIZE];        // data to send back                                  
+uint16_t UDPCommandBufInPointer = 0;
+uint16_t UDPCommandBufOutPointer = 0;
+uint16_t UDPReplyBufCount = 0;
 
 #define UDPPACSIZE 1316                    //size of each TS packet 7 * 188 byte TS packets
-uint8_t UDPTS1Buffer[2][UDPPACSIZE];
-uint8_t UDPTS2Buffer[2][UDPPACSIZE];
+#define UDPPACNUM 5
+uint8_t UDPTS1Buffer[UDPPACNUM][UDPPACSIZE];
+uint8_t UDPTS2Buffer[UDPPACNUM][UDPPACSIZE];
 uint16_t UDPTS1BufPointer = 0;
-uint8_t UDPTS1BufIndex = 0;                                                                                                                                                                                                                                                                                                                                                                                            
-bool UDPTS1Available = false;
+uint8_t UDPTS1BufInIndex = 0;   
+uint8_t UDPTS1BufOutIndex = 0;                                                                                                                                                                                                                                                                                                                                                                                          
 uint16_t UDPTS2BufPointer = 0;
-uint8_t UDPTS2BufIndex = 0;
-bool UDPTS2Available = false;
+uint8_t UDPTS2BufInIndex = 0;
+uint8_t UDPTS2BufOutIndex = 0;
+
 
 
 //PIO Devices
@@ -136,6 +141,15 @@ unsigned long lastmillis =0;
 //Core 0 does most of the work. 
 void setup() 
 {
+   EEPROM.begin(256);                 //emulate a 256 byte EEPROM using the flash memory. 
+   if(EEPROM.read(0) == 0x55)         //magic number to indicate EEPROM data is valid
+     {
+      EEPROM.get(10,ControlIP);       //restore the last used remote IP addresses. 
+      EEPROM.get(20,TS1IP);
+      EEPROM.get(30,TS2IP);
+     }
+
+
    pinMode(DEBUG1,OUTPUT);
    pinMode(DEBUG2,OUTPUT);
    pinMode(LED,OUTPUT);
@@ -195,7 +209,7 @@ void setup()
 
   //Start the Ethernet if it is fitted. 
   eth.setSPISpeed(30000000);
-  lwipPollingPeriod(1);
+  lwipPollingPeriod(1000);
   eth.begin();
 
 }
@@ -227,8 +241,13 @@ void loop()
 
   if(commandsAvailable() > 0)
     {
-      processCommands();
+      processUSBCommands();
     } 
+
+  if(UDPCommandsAvailable() >0)
+    {
+      processUDPCommands();
+    }
 
 
   if(millis() > lastmillis)             //every millisecond
@@ -240,20 +259,20 @@ void loop()
 
   if(TS1ActiveTimeout > 0)
     {
-//      digitalWrite(DEBUG1,1);
+      digitalWrite(DEBUG1,1);
     }
     else
     {
-//      digitalWrite(DEBUG1,0);
+      digitalWrite(DEBUG1,0);
     }
 
   if(TS2ActiveTimeout > 0)
     {
- //     digitalWrite(DEBUG2,1);
+      digitalWrite(DEBUG2,1);
     }
     else
     {
-//      digitalWrite(DEBUG2,0);
+      digitalWrite(DEBUG2,0);
     }
 
 }
@@ -349,12 +368,12 @@ void loop1()
                     }
                   if(EthernetConnected)
                     {
-                      UDPTS2Buffer[UDPTS2BufIndex][UDPTS2BufPointer++] = wor.b[b];
+                      UDPTS2Buffer[UDPTS2BufInIndex][UDPTS2BufPointer++] = wor.b[b];
                       if(UDPTS2BufPointer >= UDPPACSIZE)
                         {
-                          ++UDPTS2BufIndex %= 2 ;                          
                           UDPTS2BufPointer = 0;
-                          UDPTS2Available = true;
+                          UDPTS2BufInIndex ++;
+                          if(UDPTS2BufInIndex >= UDPPACNUM) UDPTS2BufInIndex = 0;                          
                         }
                     }
                 }
@@ -383,12 +402,12 @@ void loop1()
                 }
                 if(EthernetConnected)
                   {
-                    UDPTS1Buffer[UDPTS1BufIndex][UDPTS1BufPointer++] = wor.b[b];
+                    UDPTS1Buffer[UDPTS1BufInIndex][UDPTS1BufPointer++] = wor.b[b];
                     if(UDPTS1BufPointer >= UDPPACSIZE)
-                      {
-                        ++UDPTS1BufIndex %= 2 ;                          
+                      {                         
                         UDPTS1BufPointer = 0;
-                        UDPTS1Available = true;
+                        UDPTS1BufInIndex++;
+                        if(UDPTS1BufInIndex >= UDPPACNUM) UDPTS1BufInIndex = 0;
                       }
                   }
              }
@@ -459,48 +478,108 @@ void handleUSB(void)
 
 }
 
+int UDPTS2Available(void)
+{
+//need to make local copies to make sure they don't change half way through the function. 
+
+  uint8_t in = UDPTS2BufInIndex;
+  uint8_t out = UDPTS2BufOutIndex;
+
+  if(in >= UDPPACNUM) in = 0;
+  if(out >= UDPPACNUM) out =0;
+
+    if(in >= out)
+    {
+       return in - out;
+    }
+    else
+    {
+      return in + (UDPPACNUM - out);
+    }
+
+}
+
+int UDPTS1Available(void)
+{
+//need to make local copies to make sure they don't change half way through the function. 
+  uint8_t in = UDPTS1BufInIndex;
+  uint8_t out = UDPTS1BufOutIndex;
+
+  if(in >= UDPPACNUM) in = 0;
+  if(out >= UDPPACNUM) out = 0;
+
+    if(in >= out)
+    {
+       return in - out;
+    }
+    else
+    {
+      return in + (UDPPACNUM - out);
+    }
+
+}
+
+void UDPSendResult()
+{
+   while(FastUDPTransferBusy(0) == true);  //wait until the previous transfer has completed. 
+   FastUDPSend( 0, ControlIP , ControlPort, ControlDestPort , UDPReplyBuffer, UDPReplyBufCount );    //send the result excluding the FTDI status bytes
+   UDPReplyBufCount = 0;
+}
+
 //handles sending the TS streams via ethernet
 void handleEthernet(void)
 {
   static unsigned long lastpass;
+  static unsigned long lastTS1;
+  static unsigned long lastTS2;
   IPAddress remoteIP = 0;
   uint16_t remotePort = 0;
 
 if(millis() > lastpass + 10)
   {
+    uint8_t buf[2048];
     lastpass = millis();
 
     if(FastUDPAvailable(0) > 0)                   //have we received any commands on Socket Zero?
     {
-      int len = FastUDPRead(0, &remoteIP, &remotePort, UDPCommandBuffer);
-      UDPCommandBuffer[len] = 0;
+      int len = FastUDPRead(0, &remoteIP, &remotePort, buf);
+      ControlDestPort = remotePort;
+
+      if((ControlIP != remoteIP) || (TS1IP != remoteIP) ||( TS2IP != remoteIP))
+      {
       ControlIP = remoteIP;
       TS1IP = ControlIP;                        //start sending TS data to this remote address. 
       TS2IP = ControlIP;     
-      ControlDestPort = remotePort;
-      // send a reply, to the IP address and port that sent us the packet we received
-      UDPReplyBuffer[0] = 'A';
-      UDPReplyBuffer[1] = 'C';
-      UDPReplyBuffer[2] = 'K';
-      FastUDPSend( 0, ControlIP , ControlPort, ControlDestPort , UDPReplyBuffer, 3);
+      //save thes IP addresses for the next restart 
+      EEPROM.write( 0 , 0x55);         //magic number to indicate EEPROM data is valid
+      EEPROM.put(10,ControlIP);       //restore the last used remote IP addresses. 
+      EEPROM.put(20,TS1IP);
+      EEPROM.put(30,TS2IP);
+      EEPROM.commit();
+      }
+
+      //copy the commands to the UDP command buffer for processing.  
+      for(int c = 0; c < len ; c++)
+      {
+        UDPCommandBuffer[UDPCommandBufInPointer++] = buf[c];
+        if(UDPCommandBufInPointer >= UDPCOMMANDBUFSIZE ) UDPCommandBufInPointer = 0;
+      }
     }
   }
 
 
-
-
-  if(UDPTS2Available)
+  if((UDPTS2Available() > 0) && (FastUDPTransferBusy(2) == false))
     {
-       digitalWrite(DEBUG1,1);
-      UDPTS2Available = false;
-      FastUDPSend( 2, TS2IP , TS2Port, TS2Port, UDPTS2Buffer[(UDPTS2BufIndex+1) % 2],UDPPACSIZE);
-      digitalWrite(DEBUG1,0);
+       lastTS2 = millis();
+      FastUDPSend( 2, TS2IP , TS2Port, TS2Port, UDPTS2Buffer[UDPTS2BufOutIndex++],UDPPACSIZE);
+      if(UDPTS2BufOutIndex >= UDPPACNUM) UDPTS2BufOutIndex = 0;
     }
 
-  if(UDPTS1Available) 
+  if((UDPTS1Available() > 0) && (FastUDPTransferBusy(1) == false))
     {
-      UDPTS1Available = false;
-      FastUDPSend( 1, TS1IP , TS1Port, TS1Port, UDPTS1Buffer[(UDPTS1BufIndex+1) % 2],UDPPACSIZE);
+      lastTS1 = millis();
+      FastUDPSend( 1, TS1IP , TS1Port, TS1Port, UDPTS1Buffer[UDPTS1BufOutIndex++],UDPPACSIZE);
+      if(UDPTS1BufOutIndex >= UDPPACNUM) UDPTS1BufOutIndex = 0;
     }
                                                                                                                                 
 }
@@ -513,7 +592,6 @@ if(eth.connected())
     switchToFastUDP();                         //If we have detected a wired ethernet connection then we no longer need to use the slow librabry routines. Switch to using the fast UDP routines. 
     digitalWrite(ENA3V3,HIGH);
   }
-
 }
 
 
@@ -580,7 +658,7 @@ if((sel == 1) || (sel == 0))
 
 //process all available MPSSE commands. 
 //Only a few are relevent to the PicoTuner. The rest are ignored. 
-void processCommands(void)
+void processUSBCommands(void)
 {
   int command;
   int param1;
@@ -596,7 +674,7 @@ void processCommands(void)
         case 0xAA:                      //Special Bad Command for synchronising. Send response FA AA immediately.
           resultBuf[resultBufCount++] = 0xFA;
           resultBuf[resultBufCount++] = 0xAA;
-          sendResult();
+          USBsendResult();
           break;
 
         case 0x80:                    //Set GPIO Low port 
@@ -631,7 +709,7 @@ void processCommands(void)
           break;
 
         case 0x87:                     //send result. Immediately send the current result buffer to host.
-          sendResult();
+          USBsendResult();
           break;
 
         //single byte commands that we recognise but ignore because they are FTDI specific. 
@@ -651,25 +729,65 @@ void processCommands(void)
         case 0xBA:
           resultBuf[resultBufCount++] = VERSIONMAJOR;
           resultBuf[resultBufCount++] = VERSIONMINOR;
-          sendResult();
+          USBsendResult();
           break; 
 
         // New command to force Rp2040 into BOOTSEL mode for software update
         case 0xBB:
             reset_usb_boot(0,0);
           break; 
-      
+   
         //Unrecognised commands  all return Bad Command response
         default:
           resultBuf[resultBufCount++] = 0xFA;
           resultBuf[resultBufCount++] = command;
-          sendResult();
+          USBsendResult();
           break;
       }
 
   }
 }
 
+uint16_t UDPCommandsAvailable(void)
+{
+  uint16_t ret;
+  if(UDPCommandBufInPointer >= UDPCommandBufOutPointer)
+  {
+    ret = UDPCommandBufInPointer - UDPCommandBufOutPointer;
+  }
+  else
+  {
+    ret= UDPCommandBufInPointer + (UDPCOMMANDBUFSIZE - UDPCommandBufOutPointer);
+  }
+  return ret;
+}
+
+int getNextUDPCommand(void)
+{
+  int r = UDPCommandBuffer[UDPCommandBufOutPointer++];
+  if(UDPCommandBufOutPointer >= UDPCOMMANDBUFSIZE) UDPCommandBufOutPointer = 0;
+  return r;
+}
+
+//process extended commands used for UDP control
+void processUDPCommands(void)
+{
+  int command;
+ while(UDPCommandsAvailable() > 0)
+ {
+  command=getNextUDPCommand();
+
+  switch (command)
+  {
+    case '@':                 //@ = test connection. Returns 'ACK'
+        UDPReplyBuffer[UDPReplyBufCount++] = 'A';
+        UDPReplyBuffer[UDPReplyBufCount++] = 'C';
+        UDPReplyBuffer[UDPReplyBufCount++] = 'K'; 
+        UDPSendResult();       
+  }
+ }
+
+}
 
 
 //Using PIO state machines set the gpio port to value, set pin directions to direction, 1 = output. port 0=AD, 1=AC
