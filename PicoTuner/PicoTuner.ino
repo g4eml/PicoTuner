@@ -18,7 +18,7 @@
  */
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 00
-#define VERSIONMINOR 110                         
+#define VERSIONMINOR 111                        
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -89,7 +89,7 @@ uint16_t UDPCommandBufOutPointer = 0;
 uint16_t UDPReplyBufCount = 0;
 
 #define UDPPACSIZE 1316                    //size of each TS packet 7 * 188 byte TS packets
-#define UDPPACNUM 5
+#define UDPPACNUM 10
 uint8_t UDPTS1Buffer[UDPPACNUM][UDPPACSIZE];
 uint8_t UDPTS2Buffer[UDPPACNUM][UDPPACSIZE];
 uint16_t UDPTS1BufPointer = 0;
@@ -448,13 +448,7 @@ void handleUSB(void)
   if((millis() > EP83Timeout)&&(!TS2TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
   {
     sendTS2(TSSTATUS);
-    dma_channel_set_irq0_enabled(DMA2Chan, false);
-    dma_channel_abort(DMA2Chan);
-    dma_channel_acknowledge_irq0(DMA2Chan);
-    pio_sm_restart(piob, sm_TS2);
-    dma_channel_set_irq0_enabled(DMA2Chan, true);
-    dma_hw->ints0 = 1u << DMA2Chan;
-    dma_channel_set_write_addr(DMA2Chan, TS2DMA, true);
+    resetTS2();
     clearBuffers(2);
   }
 
@@ -466,13 +460,7 @@ void handleUSB(void)
   if((millis() > EP84Timeout)&&(!TS1TransferInProgress))       //send a status packet every 16ms and reset the TS state machine if we have not sent anything recently. 
   {
     sendTS1(TSSTATUS);
-    dma_channel_set_irq1_enabled(DMA1Chan, false);
-    dma_channel_abort(DMA1Chan);
-    dma_channel_acknowledge_irq1(DMA1Chan);
-    pio_sm_restart(pioa, sm_TS1);
-    dma_channel_set_irq1_enabled(DMA1Chan, true);
-    dma_hw->ints1 = 1u << DMA1Chan;
-    dma_channel_set_write_addr(DMA1Chan, TS1DMA, true);
+    resetTS1();
     clearBuffers(1);
   }
 
@@ -519,6 +507,29 @@ int UDPTS1Available(void)
 
 }
 
+void resetTS2(void)
+{
+    dma_channel_set_irq0_enabled(DMA2Chan, false);
+    dma_channel_abort(DMA2Chan);
+    dma_channel_acknowledge_irq0(DMA2Chan);
+    pio_sm_restart(piob, sm_TS2);
+    dma_channel_set_irq0_enabled(DMA2Chan, true);
+    dma_hw->ints0 = 1u << DMA2Chan;
+    dma_channel_set_write_addr(DMA2Chan, TS2DMA, true);
+}
+
+void resetTS1(void)
+{
+    dma_channel_set_irq1_enabled(DMA1Chan, false);
+    dma_channel_abort(DMA1Chan);
+    dma_channel_acknowledge_irq1(DMA1Chan);
+    pio_sm_restart(pioa, sm_TS1);
+    dma_channel_set_irq1_enabled(DMA1Chan, true);
+    dma_hw->ints1 = 1u << DMA1Chan;
+    dma_channel_set_write_addr(DMA1Chan, TS1DMA, true);
+}
+
+
 void UDPSendResult()
 {
    while(FastUDPTransferBusy(0) == true);  //wait until the previous transfer has completed. 
@@ -556,6 +567,11 @@ if(millis() > lastpass + 10)
       EEPROM.put(20,TS1IP);
       EEPROM.put(30,TS2IP);
       EEPROM.commit();
+      //EEPROM.commit disables interrupts and halts the other Core , so we need to restart the TS streams. 
+      resetTS1();
+      clearBuffers(1);
+      resetTS2();
+      clearBuffers(2);
       }
 
       //copy the commands to the UDP command buffer for processing.  
