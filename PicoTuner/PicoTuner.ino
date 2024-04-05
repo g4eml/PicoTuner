@@ -16,9 +16,15 @@
  * 
  * 
  */
+// work around for Errata E15 in RP2040 datasheet. USB controller can lock up if a large bulk transfer is started near the end of a USB frame. 
+// This fix limits tranfers to the first 80% of the frame time 
+
+#define FIX_ERRATA_E15
+
+
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0
-#define VERSIONMINOR 10                         
+#define VERSIONMINOR 11                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -190,12 +196,39 @@ void setup()
 //Core 0 does most of the work.
 void loop() 
 {
-  digitalWrite(LED , (millis() & 0x100) ==0);                 //flash the LED about 2 times per second 
+
+#ifdef FIX_ERRATA_E15
+
+    digitalWrite(LED , (lastUSBSOF & 0x40000) == 0);                 //flash the LED about 2 times per second clocked by the USB SOF interrupt 
+
+   if(TS1Deferred > 0)                                  //if we have a deferred transfer waiting
+     {
+      sendTS1NI(TS1Deferred - 1);                        //try to send it
+     }
+
+   if(TS2Deferred > 0)                                  //if we have a deferred transfer waiting
+     {
+      sendTS2NI(TS2Deferred - 1);                        //try to send it
+     }
+
+  if(resultDeferred > 0)                                  //if we have a deferred transfer waiting
+     {
+      sendResult();                                       //try to send it
+     }
+
+#else
+
+     digitalWrite(LED , (millis() & 0x100) ==0);                 //flash the LED about 2 times per second based on millis()
+
+#endif
+
+
 
   if(commandsAvailable() > 0)
     {
       processCommands();
     } 
+
 
    if((TS2BufsAvailable() >= 1 )&&(!TS2TransferInProgress))       //wait till we have a 512 byte transfer like the FTDI chip does. 
   {

@@ -49,9 +49,19 @@ void sendTS1(bool sendheader);
 void clearBuffers(int sel);
 
 unsigned long EP83Timeout;
-#define EP83TO 16       //timeout value in ms for EP83 packets. Will send a zero lenght packet if this timeout has expired. 
+#define EP83TO 100      //timeout value in ms for EP83 packets. Will send a zero lenght packet if this timeout has expired. 
 unsigned long EP84Timeout;
-#define EP84TO 16       //timeout value in ms for EP83 packets. Will send a zero lenght packet if this timeout has expired. 
+#define EP84TO 100       //timeout value in ms for EP83 packets. Will send a zero lenght packet if this timeout has expired. 
+
+
+#ifdef FIX_ERRATA_E15
+
+unsigned long lastUSBSOF = 0;             //time that we received the last USB Start of Frame in us (should be every 1000 us)
+int TS1Deferred = 0;
+int TS2Deferred = 0;
+int resultDeferred = 0;
+
+#endif
 
 // Global device address
 bool should_set_address = false;
@@ -272,10 +282,11 @@ void usb_device_init() {
     usb_hw->sie_ctrl = USB_SIE_CTRL_EP0_INT_1BUF_BITS; // <2>
 
     // Enable interrupts for when a buffer is done, when the bus is reset,
-    // and when a setup packet is received
+    // when a setup packet is received and at the start of each USB frame (1ms)
     usb_hw->inte = USB_INTS_BUFF_STATUS_BITS |
                    USB_INTS_BUS_RESET_BITS |
-                   USB_INTS_SETUP_REQ_BITS;
+                   USB_INTS_SETUP_REQ_BITS |
+                   USB_INTS_DEV_SOF_BITS;
 
     // Set up endpoints (endpoint control registers)
     // described by device configuration
@@ -569,6 +580,13 @@ void isr_usbctrl(void) {
     // USB interrupt handler
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
+    //Start of Frame Interrupt received (every 1ms)
+    if (status & USB_INTS_DEV_SOF_BITS) {
+        handled |= USB_INTS_DEV_SOF_BITS;
+        lastUSBSOF = micros();                      //record when this SOF happened so that we can avoid starting Bulk transfers near the end of a frame (Errata E15 in Rp2040 datasheet)
+        uint32_t dummy = usb_hw->sof_rd;           //read the SOF _RD register to clear the interrupt flag
+    }
+
     // Setup packet received
     if (status & USB_INTS_SETUP_REQ_BITS) {
         handled |= USB_INTS_SETUP_REQ_BITS;
@@ -620,6 +638,20 @@ void ep0_out_handler(uint8_t *buf, uint16_t len)
 void sendResult(void)
 {
   unsigned long to;
+
+#ifdef FIX_ERRATA_E15
+
+  uint32_t nowTime = micros();        //get the current time in microseconds
+  if((nowTime - lastUSBSOF) >= 800)   // less than 200 us remaining in this USB frame. So defer sending this packet (Errata E15 Rp2040 datasheet)
+    {
+      resultDeferred = 1;        
+      return;
+    }
+   
+   resultDeferred = 0;
+
+#endif
+
   resultSent = false;
   noInterrupts();
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP81_IN_ADDR);
@@ -705,6 +737,19 @@ void sendTS2(int mode)
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP83_IN_ADDR);
     uint8_t sbuf[64];
 
+#ifdef FIX_ERRATA_E15
+
+  uint32_t nowTime = micros();        //get the current time in microseconds
+  if((nowTime - lastUSBSOF) >= 800)   // less than 200 us remaining in this USB frame. So defer sending this packet (Errata E15 Rp2040 datasheet)
+    {
+      TS2Deferred = mode + 1;         //save the mode for later
+      return;
+    }
+   
+   TS2Deferred = 0;
+
+#endif
+
     switch(mode) 
     {
       case 0:                                                            //send zero length packet
@@ -743,6 +788,19 @@ void sendTS1(int mode)
 {
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP84_IN_ADDR);
     uint8_t sbuf[64];
+
+#ifdef FIX_ERRATA_E15
+
+    uint32_t nowTime = micros();        //get the current time in microseconds
+  if((nowTime - lastUSBSOF) >= 800)   // less than 200 us remaining in this USB frame. So defer sending this packet (Errata E15 Rp2040 datasheet)
+    {
+      TS1Deferred = mode + 1;         //save the mode for later
+      return;
+    }
+   
+   TS1Deferred = 0;
+
+#endif
 
     switch(mode) 
     {
