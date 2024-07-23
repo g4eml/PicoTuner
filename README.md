@@ -122,6 +122,21 @@ On Interface 1:-
 
 0x83 and 0x84 as Bulk transfer inputs for streaming TS2 and TS1. Sent 512 bytes at a time. Note that there is a 2 byte status word at the beginning of each 512 byte transfer which will nedd to be removed to reform the original TS. 
 
+## USB Drivers
+
+No special drivers are needed for Ryde or Portsdown. If you are using the Picotuner with Windows then you will need to load the WinUSB drivers using the Zadig program which can be downloaded from https://github.com/pbatard/libwdi/releases/tag/v1.5.0
+
+Using Zadig you can now install the WinUSB driver for both of the USB interfaces presented by the Pico.
+
+![image-5](https://github.com/user-attachments/assets/94cb2451-55ff-4494-bf5a-d9fc8738184e)
+![image-6](https://github.com/user-attachments/assets/61956c72-46fd-413a-b2a9-1ac4dca4316c)
+
+Note that you must load the driver for Interface 0 and Interface 1  as shown above. 
+
+Once the correct drivers have been loaded the picotuner should appear under 'Universal Serial Bus Devices' in windows hardware manager. 
+
+![PicoTuner in Device Manager](https://github.com/user-attachments/assets/24cf0ec4-5501-42fe-8544-fb8073c3bcf9)
+
 # Adaptor PCB for Minitiouner
 
 ![Adaptor_Small](https://github.com/g4eml/PicoTuner/assets/1881884/8f318989-f6f2-4fd1-a1c9-3b0cc474d794)
