@@ -137,6 +137,11 @@ Once the correct drivers have been loaded the picotuner should appear under 'Uni
 
 ![PicoTuner in Device Manager](https://github.com/user-attachments/assets/24cf0ec4-5501-42fe-8544-fb8073c3bcf9)
 
+
+Alternatively Tom AR6TG has written a utility which should automate the driver installation, 
+
+https://www.dropbox.com/scl/fi/3ziiiq71hretd2yzaou8f/picotuner_driver_test_app.zip?rlkey=gl4xsxddxprxfvjjydebvez5y&dl=0
+
 # Adaptor PCB for Minitiouner
 
 ![Adaptor_Small](https://github.com/g4eml/PicoTuner/assets/1881884/8f318989-f6f2-4fd1-a1c9-3b0cc474d794)
