@@ -161,9 +161,7 @@ void setup()
    //initialse the PIO SM using the helper function defined in the .pio file
    Pio_TS_S_init(piob, sm_TS2, offset_TS2, TS2DAT);
 
-
-
-    irq_set_exclusive_handler(5,isr_usbctrl);
+    irq_set_exclusive_handler(USBCTRL_IRQ,isr_usbctrl);    
 
    // reset all of the  buffers. 
     clearBuffers(0);
