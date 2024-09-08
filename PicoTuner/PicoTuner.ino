@@ -24,7 +24,7 @@
 
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0
-#define VERSIONMINOR 12                         
+#define VERSIONMINOR 11                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -162,13 +162,8 @@ void setup()
    Pio_TS_S_init(piob, sm_TS2, offset_TS2, TS2DAT);
 
 
-//The RP2040 used in the Pico and the RP2350 used in the Pico 2 have different Interrupt numbers for the USB controller. 
 
-#if defined(PICO_RP2040)
-    irq_set_exclusive_handler(5,isr_usbctrl);    
-#elif defined(PICO_RP2350)
-    irq_set_exclusive_handler(14,isr_usbctrl);
-#endif
+    irq_set_exclusive_handler(5,isr_usbctrl);
 
    // reset all of the  buffers. 
     clearBuffers(0);
@@ -188,7 +183,6 @@ void setup()
     while (!configured) {
         tight_loop_contents();
     }
-
 
     digitalWrite(ENA3V3, HIGH);
 
