@@ -19,7 +19,7 @@ The Pico hardware can only support USB 1.1 Full Speed mode which is up to 12 Mb/
 
 This can be done either before or after the Pico has been fitted to the minitiouner, it makes no difference. Updating to a new firmware version is done the same way. 
 
-The UF2 file (from Version 0.12 onwards) is compatible with both the Pico and the Pico 2. 
+The uf2 file (from Version 0.12 onwards) is compatible with both the Pico and the Pico 2. 
 
 1. Locate the latest compiled firmware file 'PicoTuner_vxxx.uf2' which will be found here https://github.com/g4eml/PicoTuner/releases and save it to your desktop. 
 
