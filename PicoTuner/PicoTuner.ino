@@ -24,7 +24,7 @@
 
 //Version Number BCD   vvrr
 #define VERSIONMAJOR 0
-#define VERSIONMINOR 11                         
+#define VERSIONMINOR 12                         
 //Define the USB VID/PID values. 2E8A:BA2C uses the Raspberry Pi VID and a random PID. 
 //Original FTDI chip uses 0403:6010
 #define USBVID 0x2E8A
@@ -161,9 +161,7 @@ void setup()
    //initialse the PIO SM using the helper function defined in the .pio file
    Pio_TS_S_init(piob, sm_TS2, offset_TS2, TS2DAT);
 
-
-
-    irq_set_exclusive_handler(5,isr_usbctrl);
+    irq_set_exclusive_handler(USBCTRL_IRQ,isr_usbctrl);    
 
    // reset all of the  buffers. 
     clearBuffers(0);
@@ -593,14 +591,22 @@ void processCommands(void)
 void shiftBitsIn(int count)
 {
   int val = 0;
+
+//RP2350 PIO is faster than the RP2040 so we need a longer delay to get the correct SPI Speed. 
+#if defined(PICO_RP2350)
+#define SPIDEL 2
+#else
+#define SPIDEL 1
+#endif
+
   noInterrupts();
   for(int c= count ; c > 0 ; c--)
     {
       pio_sm_put_blocking(pioa, sm_2, (0x02 <<2 ) + 0x02);            //set SCL High with SDA HI Z
-      delayMicroseconds(1);
+      delayMicroseconds(SPIDEL);
       val=(val<<1) + (digitalRead(SDA) ? 1:0);                       //shift in the data bit
       pio_sm_put_blocking(pioa, sm_2, (0x02 <<2 ) + 0x00);            //set SCL Low with SDA HI Z
-      delayMicroseconds(1);
+      delayMicroseconds(SPIDEL);
     }
    interrupts();
   resultBuf[resultBufCount++] = val;
@@ -613,9 +619,9 @@ void shiftByteOut(int byte)
   for(int c= 8 ; c > 0 ; c--)
     {
       pio_sm_put_blocking(pioa, sm_2, (0x03 <<2 ) + ((byte & 0x80) ? 1:0));            //set SDA with SCL Low
-      delayMicroseconds(1);
+      delayMicroseconds(SPIDEL);
       pio_sm_put_blocking(pioa, sm_2, (0x03 <<2 ) + ((byte & 0x80) ? 3:2));            //set SDA with SCL High
-      delayMicroseconds(1);
+      delayMicroseconds(SPIDEL);
       pio_sm_put_blocking(pioa, sm_2, (0x03 <<2 ) + ((byte & 0x80) ? 1:0));            //set SDA with SCL LOW
       byte=byte<<1;
     }
