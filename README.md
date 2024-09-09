@@ -7,7 +7,7 @@ The Raspberry Pi Pico is low cost, readily available and can also handle both Tr
 
 ## Requirements
 
-This code will work on the original Raspberry Pi Pico, the Pico W and probably on other RP2040 based boards.
+This code will work on the original Raspberry Pi Pico, the Pico W, the Pico 2 and probably on other RP2040 and RP2350 based boards.
 Whilst being designed for the new BATC V3 Minitiouner project it is also possible to retrofit a Pico to the V2 Minitiouner.
 The advantage of doing this is to provide access to the second Transport Stream from the NIM. This will allow two signals to be received at the same time.
 
@@ -17,7 +17,9 @@ The Pico hardware can only support USB 1.1 Full Speed mode which is up to 12 Mb/
 
 ## Programming or updating the Raspberry Pi Pico (quick method)
 
-This can be done either before or after the Pico has been fitted to the minitiouner, it makes no difference. Updating to a new firmware version is done the same way.   
+This can be done either before or after the Pico has been fitted to the minitiouner, it makes no difference. Updating to a new firmware version is done the same way. 
+
+The UF2 file (from Version 0.12 onwards) is compatible with both the Pico and the Pico 2. 
 
 1. Locate the latest compiled firmware file 'PicoTuner_vxxx.uf2' which will be found here https://github.com/g4eml/PicoTuner/releases and save it to your desktop. 
 
@@ -26,7 +28,7 @@ This can be done either before or after the Pico has been fitted to the minitiou
 3. Copy the .uf2 file onto the USB drive. The pico will recognise the file and immediately update its firmware, reboot and the PC should recognise a new USB device. 
 
 ## Building your own version of the firmware (longer method and not normally required)
-The Raspberry Pi Pico is programmed using the Arduino IDE with the Earl F. Philhower, III  RP2040 core. 
+The Raspberry Pi Pico is programmed using the Arduino IDE with the Earl F. Philhower, III   core. 
 
 #### Installing the Arduino IDE
 
@@ -34,7 +36,7 @@ The Raspberry Pi Pico is programmed using the Arduino IDE with the Earl F. Philh
 
 2. Open the Arduino IDE and go to File/Preferences.
 
-3. in the dialog enter the following URL in the 'Additional Boards Manager URLs' field: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+3. in the dialog enter the following URL in the 'Additional Boards Manager URLs' field: https://github.com/earlephilhower/arduino-pico/releases/download/global/package__index.json
 
 4. Hit OK to close the Dialog.
 
@@ -42,7 +44,7 @@ The Raspberry Pi Pico is programmed using the Arduino IDE with the Earl F. Philh
 
 6. Type “pico” in the search box.
 
-7. Locate the entry for 'Raspberry Pi Pico/RP2040 by Earle F. Philhower, III' and click 'Install'
+7. Locate the entry for 'Raspberry Pi Pico/ by Earle F. Philhower, III' and click 'Install'
  
 #### Downloading the Software.
 
@@ -59,7 +61,7 @@ The Raspberry Pi Pico is programmed using the Arduino IDE with the Earl F. Philh
 3. Select Tools and make the following settings.
 
 
-   Board: "Raspberry Pi Pico"
+   Board: "Raspberry Pi Pico" or "Raspberry Pi Pico 2"
 
    Debug Level: "None"
 
@@ -67,9 +69,9 @@ The Raspberry Pi Pico is programmed using the Arduino IDE with the Earl F. Philh
 
    C++ Exceptions: "Disabled"
    
-   Flash Size: "2Mb (no FS)"
+   Flash Size: "2Mb (no FS)" for the Pico or "4Mb (no FS)" for the Pico 2
    
-   CPU Speed: "133MHz"
+   CPU Speed: "133MHz" for the Pico or "150MHz" for the Pico 2
 
    IP/Bluetooth Stack: "IPV4 Only"
    
@@ -98,7 +100,7 @@ Control of the GPIO pins for I2C, for device control and for reading the two TS 
 Note that these files are auto generated and should not be manually edited. If you need to change the PIO machines then you will need to edit the .pio files and recompile them. 
 The .pio files are not visible in the Arduino IDE, you should use another text editor to work on them. When finished you should run the 'build_pio.bat' batch job to create the pio.h files. 
 
-Both cores of the RP2040 chip are used. Core0 does most of the work including running the interrupt driven USB device. Core1 handles the task of handling the DMA, copying and reformatting of the TS data.
+Both cores of the  or RP2350 chip are used. Core0 does most of the work including running the interrupt driven USB device. Core1 handles the task of handling the DMA, copying and reformatting of the TS data.
 Note that both cores are fairly time critical. Adding debugging print statements will slow them down and cause errors with the USB device. 
 
 ## USB device description
